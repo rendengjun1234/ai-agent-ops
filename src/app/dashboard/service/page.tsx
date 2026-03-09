@@ -4,6 +4,8 @@ import { MessageCircle, Bot, Clock, Users, Send, Smile, Paperclip, Phone, MoreVe
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { conversations, knowledgeBase, serviceStats, autoReplyRules, type Conversation, type Message } from '@/lib/service-data'
 import { useStore } from '@/lib/store-context'
+import { useToast } from '@/components/ui/toast'
+import { Modal } from '@/components/ui/modal'
 
 const tabs = ['在线客服', '评论互动', '私信管理', '知识库']
 
@@ -60,10 +62,36 @@ export default function ServicePage() {
   const [activeTab, setActiveTab] = useState(0)
   const [selectedConv, setSelectedConv] = useState<Conversation | null>(conversations[0] || null)
   const [commentFilter, setCommentFilter] = useState('全部')
+  const [chatInput, setChatInput] = useState('')
+  const [extraMessages, setExtraMessages] = useState<Record<string, Message[]>>({})
+  const [repliedComments, setRepliedComments] = useState<Record<number, string>>({})
+  const [repliedDMs, setRepliedDMs] = useState<Set<number>>(new Set())
+  const [showKBModal, setShowKBModal] = useState(false)
+  const [kbForm, setKbForm] = useState({ question: '', answer: '', category: '产品' })
+  const [ruleToggles, setRuleToggles] = useState(autoReplyRules.map(r => r.enabled))
   const { currentStore } = useStore()
+  const { toast } = useToast()
 
-  const unrepliedComments = comments.filter(c => !c.replied).length
-  const pendingDMs = directMessages.filter(d => d.status === 'pending').length
+  const unrepliedComments = comments.filter(c => !c.replied && !repliedComments[c.id]).length
+  const pendingDMs = directMessages.filter(d => d.status === 'pending' && !repliedDMs.has(d.id)).length
+
+  const handleSendChat = () => {
+    if (!chatInput.trim() || !selectedConv) return
+    const msg: Message = { id: Date.now().toString(), sender: 'staff', content: chatInput, time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }
+    setExtraMessages(prev => ({ ...prev, [selectedConv.id]: [...(prev[selectedConv.id] || []), msg] }))
+    setChatInput('')
+    toast('success', '消息已发送')
+  }
+
+  const handleCommentReply = (commentId: number, reply: string) => {
+    setRepliedComments(prev => ({ ...prev, [commentId]: reply }))
+    toast('success', '评论回复已发送')
+  }
+
+  const handleDMReply = (dmId: number) => {
+    setRepliedDMs(prev => new Set(prev).add(dmId))
+    toast('success', '私信已标记处理')
+  }
 
   return (
     <div className="space-y-6">
@@ -136,10 +164,11 @@ export default function ServicePage() {
                   </div>
                   <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#f5f5f5]">
                     {selectedConv.messages.map(msg => <ChatBubble key={msg.id} msg={msg} />)}
+                    {(extraMessages[selectedConv.id] || []).map(msg => <ChatBubble key={msg.id} msg={msg} />)}
                   </div>
                   <div className="p-3 border-t border-gray-100 flex gap-2">
-                    <input type="text" placeholder="输入回复..." className="flex-1 px-4 py-2 text-sm bg-gray-50 rounded-lg border border-gray-200 outline-none" />
-                    <button className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700"><Send className="w-4 h-4" /></button>
+                    <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendChat()} placeholder="输入回复..." className="flex-1 px-4 py-2 text-sm bg-gray-50 rounded-lg border border-gray-200 outline-none" />
+                    <button onClick={handleSendChat} className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700"><Send className="w-4 h-4" /></button>
                   </div>
                 </>
               ) : (
@@ -177,8 +206,10 @@ export default function ServicePage() {
           </div>
 
           <div className="space-y-3">
-            {comments.filter(c => commentFilter === '全部' || c.platform === commentFilter).map(comment => (
-              <div key={comment.id} className={`bg-white rounded-xl p-5 border shadow-sm ${!comment.replied ? 'border-orange-200' : 'border-gray-100'}`}>
+            {comments.filter(c => commentFilter === '全部' || c.platform === commentFilter).map(comment => {
+              const isReplied = comment.replied || !!repliedComments[comment.id]
+              return (
+              <div key={comment.id} className={`bg-white rounded-xl p-5 border shadow-sm ${!isReplied ? 'border-orange-200' : 'border-gray-100'}`}>
                 <div className="flex items-start gap-3">
                   <span className="text-2xl">{comment.avatar}</span>
                   <div className="flex-1">
@@ -186,8 +217,8 @@ export default function ServicePage() {
                       <span className="text-sm font-medium text-gray-900">{comment.user}</span>
                       <span className="text-xs text-gray-400">{comment.platformIcon} {comment.platform} · {comment.account}</span>
                       <span className="text-xs text-gray-400">· {comment.time}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ml-auto ${comment.replied ? 'bg-green-50 text-green-600' : 'bg-orange-50 text-orange-600'}`}>
-                        {comment.replied ? '已回复' : '待回复'}
+                      <span className={`text-xs px-2 py-0.5 rounded-full ml-auto ${isReplied ? 'bg-green-50 text-green-600' : 'bg-orange-50 text-orange-600'}`}>
+                        {isReplied ? '已回复' : '待回复'}
                       </span>
                     </div>
                     <p className="text-xs text-gray-400 mb-1">评论于「{comment.postTitle}」</p>
@@ -197,27 +228,27 @@ export default function ServicePage() {
                       <span className={`px-2 py-0.5 rounded-full ${comment.intent === '投诉处理' ? 'bg-red-50 text-red-600' : comment.intent === '品质质疑' ? 'bg-yellow-50 text-yellow-600' : 'bg-blue-50 text-blue-600'}`}>{comment.intent}</span>
                     </div>
 
-                    {comment.replied && comment.myReply && (
+                    {(isReplied) && (
                       <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-100">
-                        <p className="text-xs text-green-700">💬 已回复：{comment.myReply}</p>
+                        <p className="text-xs text-green-700">💬 已回复：{repliedComments[comment.id] || comment.myReply}</p>
                       </div>
                     )}
 
-                    {!comment.replied && (
+                    {!isReplied && (
                       <div className="mt-3 p-3 bg-purple-50 rounded-lg border border-purple-100">
                         <p className="text-xs text-purple-700 mb-2">🤖 AI建议回复：</p>
                         <p className="text-xs text-gray-700">{comment.aiReply}</p>
                         <div className="flex gap-2 mt-2">
-                          <button className="px-3 py-1.5 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700 flex items-center gap-1"><Send className="w-3 h-3" />采纳发送</button>
-                          <button className="px-3 py-1.5 bg-white text-xs text-gray-600 rounded-lg border hover:bg-gray-50">编辑后发</button>
-                          <button className="px-3 py-1.5 bg-white text-xs text-gray-600 rounded-lg border hover:bg-gray-50">忽略</button>
+                          <button onClick={() => handleCommentReply(comment.id, comment.aiReply || '')} className="px-3 py-1.5 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700 flex items-center gap-1"><Send className="w-3 h-3" />采纳发送</button>
+                          <button onClick={() => { const r = prompt('编辑回复内容：', comment.aiReply || ''); if (r) handleCommentReply(comment.id, r) }} className="px-3 py-1.5 bg-white text-xs text-gray-600 rounded-lg border hover:bg-gray-50">编辑后发</button>
+                          <button onClick={() => toast('info', '已忽略该评论')} className="px-3 py-1.5 bg-white text-xs text-gray-600 rounded-lg border hover:bg-gray-50">忽略</button>
                         </div>
                       </div>
                     )}
                   </div>
                 </div>
               </div>
-            ))}
+            )})}
           </div>
         </div>
       )}
@@ -242,9 +273,12 @@ export default function ServicePage() {
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
             <div className="divide-y divide-gray-50">
               {directMessages.map(dm => {
-                const stCfg = dmStatusConfig[dm.status]
+                const isDmReplied = repliedDMs.has(dm.id)
+                const effectiveStatus = isDmReplied ? 'resolved' : dm.status
+                const stCfg = dmStatusConfig[effectiveStatus as keyof typeof dmStatusConfig] || dmStatusConfig.pending
                 return (
-                  <div key={dm.id} className={`flex items-center gap-4 px-5 py-4 hover:bg-gray-50 cursor-pointer ${dm.status === 'pending' ? 'bg-orange-50/30' : ''}`}>
+                  <div key={dm.id} onClick={() => { if (!isDmReplied && dm.status === 'pending') handleDMReply(dm.id) }}
+                    className={`flex items-center gap-4 px-5 py-4 hover:bg-gray-50 cursor-pointer ${effectiveStatus === 'pending' ? 'bg-orange-50/30' : ''}`}>
                     <div className="relative">
                       <span className="text-2xl">{dm.avatar}</span>
                       <span className="absolute -bottom-1 -right-1 text-xs">{dm.platformIcon}</span>
@@ -276,7 +310,7 @@ export default function ServicePage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-gray-500">AI客服和评论互动均基于知识库回复</p>
-            <button className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-1"><Plus className="w-4 h-4" />添加条目</button>
+            <button onClick={() => setShowKBModal(true)} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-1"><Plus className="w-4 h-4" />添加条目</button>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             {knowledgeBase.map(item => (
@@ -294,20 +328,46 @@ export default function ServicePage() {
           <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
             <h3 className="font-semibold text-gray-900 mb-4">自动回复规则</h3>
             <div className="space-y-2">
-              {autoReplyRules.map(rule => (
+              {autoReplyRules.map((rule, i) => (
                 <div key={rule.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <div className={`w-2 h-2 rounded-full ${rule.enabled ? 'bg-green-500' : 'bg-gray-300'}`} />
+                  <div className={`w-2 h-2 rounded-full ${ruleToggles[i] ? 'bg-green-500' : 'bg-gray-300'}`} />
                   <div className="flex-1">
                     <p className="text-sm font-medium text-gray-900">{rule.trigger}</p>
                     <p className="text-xs text-gray-500">→ {rule.reply} · 命中{rule.hitCount}次</p>
                   </div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${rule.enabled ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-500'}`}>{rule.enabled ? '启用' : '关闭'}</span>
+                  <button onClick={() => { const n = [...ruleToggles]; n[i] = !n[i]; setRuleToggles(n); toast(n[i] ? 'success' : 'info', `自动回复规则「${rule.trigger}」已${n[i] ? '启用' : '关闭'}`) }}
+                    className={`text-xs px-2 py-0.5 rounded-full cursor-pointer ${ruleToggles[i] ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-500'}`}>{ruleToggles[i] ? '启用' : '关闭'}</button>
                 </div>
               ))}
             </div>
           </div>
         </div>
       )}
+
+      {/* Knowledge Base Add Modal */}
+      <Modal open={showKBModal} onClose={() => setShowKBModal(false)} title="添加知识库条目" footer={
+        <>
+          <button onClick={() => setShowKBModal(false)} className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">取消</button>
+          <button onClick={() => { toast('success', '知识库条目已添加'); setShowKBModal(false); setKbForm({ question: '', answer: '', category: '产品' }) }} className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700">添加</button>
+        </>
+      }>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">分类</label>
+            <select value={kbForm.category} onChange={e => setKbForm(f => ({ ...f, category: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none">
+              {['产品', '服务', '优惠', '其他'].map(c => <option key={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">常见问题</label>
+            <input value={kbForm.question} onChange={e => setKbForm(f => ({ ...f, question: e.target.value }))} placeholder="例：你们的汤是现熬的吗？" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">标准回复</label>
+            <textarea value={kbForm.answer} onChange={e => setKbForm(f => ({ ...f, answer: e.target.value }))} placeholder="输入标准回复内容..." rows={3} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none" />
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

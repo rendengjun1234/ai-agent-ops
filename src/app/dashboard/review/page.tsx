@@ -1,9 +1,10 @@
 'use client'
 import { useState } from 'react'
-import { Star, AlertTriangle, CheckCircle, Clock, TrendingUp, TrendingDown, ChevronRight, MessageSquare, Eye, Shield, Sparkles, Target, Users, BarChart3, Send, Copy, ThumbsUp, ThumbsDown, Flame, Filter, Search, Image as ImageIcon, Video, ExternalLink, ArrowRight, Zap, FileText, Settings } from 'lucide-react'
+import { Star, AlertTriangle, CheckCircle, Clock, TrendingUp, TrendingDown, ChevronRight, MessageSquare, Eye, Shield, Sparkles, Target, Users, BarChart3, Send, Copy, ThumbsUp, ThumbsDown, Flame, Filter, Search, Image as ImageIcon, Video, ExternalLink, ArrowRight, Zap, FileText, Settings, X } from 'lucide-react'
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, PieChart, Pie, Cell } from 'recharts'
 import { reviews, remediationTasks, tagTrends, storeComparison, goodReviewAssets, reviewKPIs, type Review } from '@/lib/review-system-data'
 import { useStore } from '@/lib/store-context'
+import { useToast } from '@/components/ui/toast'
 
 const tabs = ['总览', '评价处理台', '整改任务中心', '经营洞察']
 const COLORS = ['#ef4444', '#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ec4899']
@@ -92,7 +93,9 @@ const badgeColors = {
   '建议': 'bg-purple-100 text-purple-600',
 }
 
-function ReviewDetailPanel({ review, onClose }: { review: Review; onClose: () => void }) {
+function ReviewDetailPanel({ review, onClose, onAction }: { review: Review; onClose: () => void; onAction: (action: string, review: Review) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [replyText, setReplyText] = useState(review.aiReply)
   return (
     <div className="fixed inset-0 z-50 flex">
       <div className="absolute inset-0 bg-black/30" onClick={onClose} />
@@ -140,16 +143,20 @@ function ReviewDetailPanel({ review, onClose }: { review: Review; onClose: () =>
           </div>
           <div className="p-4 bg-green-50 rounded-xl border border-green-100">
             <h4 className="font-medium text-sm mb-2 flex items-center gap-2"><MessageSquare className="w-4 h-4 text-green-600" />AI建议回复</h4>
-            <p className="text-sm text-gray-700 leading-relaxed">{review.aiReply}</p>
+            {editing ? (
+              <textarea value={replyText} onChange={e => setReplyText(e.target.value)} className="w-full p-3 text-sm border border-green-200 rounded-lg bg-white outline-none focus:ring-2 focus:ring-green-300 min-h-[80px]" />
+            ) : (
+              <p className="text-sm text-gray-700 leading-relaxed">{replyText}</p>
+            )}
             <div className="flex gap-2 mt-3">
-              <button className="flex-1 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 flex items-center justify-center gap-1"><Send className="w-4 h-4" />采纳并发送</button>
-              <button className="px-3 py-2 bg-white text-sm text-gray-600 rounded-lg border hover:bg-gray-50">编辑</button>
+              <button onClick={() => onAction('reply', review)} className="flex-1 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 flex items-center justify-center gap-1"><Send className="w-4 h-4" />{editing ? '确认发送' : '采纳并发送'}</button>
+              <button onClick={() => setEditing(!editing)} className="px-3 py-2 bg-white text-sm text-gray-600 rounded-lg border hover:bg-gray-50">{editing ? '取消' : '编辑'}</button>
             </div>
           </div>
           {review.rating <= 2 && (
             <div className="p-4 bg-yellow-50 rounded-xl border border-yellow-200">
               <p className="text-sm font-medium mb-2">是否创建整改任务？</p>
-              <button className="w-full py-2 bg-yellow-500 text-white text-sm rounded-lg hover:bg-yellow-600 flex items-center justify-center gap-1"><Target className="w-4 h-4" />创建整改任务</button>
+              <button onClick={() => onAction('task', review)} className="w-full py-2 bg-yellow-500 text-white text-sm rounded-lg hover:bg-yellow-600 flex items-center justify-center gap-1"><Target className="w-4 h-4" />创建整改任务</button>
             </div>
           )}
         </div>
@@ -162,16 +169,52 @@ export default function ReviewPage() {
   const [activeTab, setActiveTab] = useState(0)
   const [selectedReview, setSelectedReview] = useState<Review | null>(null)
   const [filterPlatform, setFilterPlatform] = useState('全部')
+  const [reviewStatuses, setReviewStatuses] = useState<Record<string, string>>({})
+  const [taskStatuses, setTaskStatuses] = useState<Record<string, string>>({})
+  const [copiedId, setCopiedId] = useState<string | null>(null)
   const { currentStore } = useStore()
+  const { toast } = useToast()
 
-  const pendingCount = reviews.filter(r => r.status === 'pending').length
-  const p1Count = reviews.filter(r => r.riskLevel === 'P1' && r.status === 'pending').length
+  const getReviewStatus = (r: Review) => (reviewStatuses[r.id] as Review['status']) || r.status
+  const pendingCount = reviews.filter(r => getReviewStatus(r) === 'pending').length
+  const p1Count = reviews.filter(r => r.riskLevel === 'P1' && getReviewStatus(r) === 'pending').length
+
+  const handleReviewAction = (action: string, review: Review) => {
+    if (action === 'reply') {
+      setReviewStatuses(prev => ({ ...prev, [review.id]: 'replied' }))
+      toast('success', `已回复「${review.author}」的${review.platform}评价`)
+      setSelectedReview(null)
+    } else if (action === 'task') {
+      toast('success', `已为「${review.content.slice(0, 15)}...」创建整改任务`)
+      setSelectedReview(null)
+      setActiveTab(2)
+    }
+  }
+
+  const handleTaskAction = (taskId: string, action: string) => {
+    if (action === 'start') {
+      setTaskStatuses(prev => ({ ...prev, [taskId]: 'in_progress' }))
+      toast('info', '整改任务已开始处理')
+    } else if (action === 'resolve') {
+      setTaskStatuses(prev => ({ ...prev, [taskId]: 'resolved' }))
+      toast('success', '整改任务已标记完成')
+    }
+  }
+
+  const handleCopy = (text: string, id: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedId(id)
+      toast('success', '已复制到剪贴板')
+      setTimeout(() => setCopiedId(null), 2000)
+    })
+  }
 
   const filteredReviews = reviews.filter(r => filterPlatform === '全部' || r.platform === filterPlatform)
     .sort((a, b) => {
       const p = { P1: 0, P2: 1, P3: 2, P4: 3 }
-      if (a.status === 'pending' && b.status !== 'pending') return -1
-      if (a.status !== 'pending' && b.status === 'pending') return 1
+      const sa = getReviewStatus(a), sb = getReviewStatus(b)
+      if (sa === 'pending' && sb !== 'pending') return -1
+      if (sa !== 'pending' && sb === 'pending') return 1
       return p[a.riskLevel] - p[b.riskLevel]
     })
 
@@ -391,10 +434,11 @@ export default function ReviewPage() {
           <div className="space-y-3">
             {filteredReviews.map(review => {
               const risk = riskConfig[review.riskLevel]
-              const st = statusConfig[review.status]
+              const dynStatus = getReviewStatus(review)
+              const st = statusConfig[dynStatus]
               return (
                 <div key={review.id} onClick={() => setSelectedReview(review)}
-                  className={`bg-white rounded-xl p-5 border shadow-sm cursor-pointer hover:shadow-md transition ${review.status === 'pending' && review.riskLevel === 'P1' ? 'border-red-200 bg-red-50/30' : 'border-gray-100'}`}>
+                  className={`bg-white rounded-xl p-5 border shadow-sm cursor-pointer hover:shadow-md transition ${dynStatus === 'pending' && review.riskLevel === 'P1' ? 'border-red-200 bg-red-50/30' : 'border-gray-100'}`}>
                   <div className="flex items-start gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
@@ -441,13 +485,22 @@ export default function ReviewPage() {
           </div>
           <div className="space-y-3">
             {remediationTasks.map(task => {
-              const tRisk = riskConfig[task.riskLevel]; const tStatus = taskStatusConfig[task.status]
+              const dynTaskStatus = (taskStatuses[task.id] || task.status) as keyof typeof taskStatusConfig
+              const tRisk = riskConfig[task.riskLevel]; const tStatus = taskStatusConfig[dynTaskStatus]
               return (
                 <div key={task.id} className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
                     <h3 className="font-semibold text-gray-900">{task.title}</h3>
                     <span className={`text-xs px-2 py-0.5 rounded-full ${tRisk.color}`}>{tRisk.label}</span>
                     <span className={`text-xs px-2 py-0.5 rounded-full ${tStatus.color}`}>{tStatus.label}</span>
+                    <div className="ml-auto flex gap-2">
+                      {dynTaskStatus === 'open' && (
+                        <button onClick={() => handleTaskAction(task.id, 'start')} className="px-3 py-1 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700">开始处理</button>
+                      )}
+                      {dynTaskStatus === 'in_progress' && (
+                        <button onClick={() => handleTaskAction(task.id, 'resolve')} className="px-3 py-1 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700">标记完成</button>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-3 text-xs text-gray-500 mb-3">
                     <span>📊 {task.sourceReviewCount}条评价</span><span>📍 {task.stores.join('、')}</span><span>👤 {task.assignee}</span><span>📅 截止 {task.deadline}</span>
@@ -503,7 +556,7 @@ export default function ReviewPage() {
                 <div key={c.use} className="flex items-center gap-3 p-3 bg-white rounded-lg">
                   <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded shrink-0">{c.use}</span>
                   <p className="text-xs text-gray-700 flex-1">{c.text}</p>
-                  <Copy className="w-3.5 h-3.5 text-gray-400 shrink-0 cursor-pointer hover:text-primary-600" />
+                  <Copy onClick={() => handleCopy(c.text, c.use)} className={`w-3.5 h-3.5 shrink-0 cursor-pointer ${copiedId === c.use ? 'text-green-500' : 'text-gray-400 hover:text-primary-600'}`} />
                 </div>
               ))}
             </div>
@@ -511,7 +564,7 @@ export default function ReviewPage() {
         </div>
       )}
 
-      {selectedReview && <ReviewDetailPanel review={selectedReview} onClose={() => setSelectedReview(null)} />}
+      {selectedReview && <ReviewDetailPanel review={selectedReview} onClose={() => setSelectedReview(null)} onAction={handleReviewAction} />}
     </div>
   )
 }

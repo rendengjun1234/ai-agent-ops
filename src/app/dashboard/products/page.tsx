@@ -3,6 +3,8 @@ import { useState } from 'react'
 import { ShoppingBag, Store, Globe, Package, TrendingUp, TrendingDown, Star, Eye, CheckCircle, XCircle, AlertTriangle, Clock, Edit, Plus, MoreHorizontal, Search, Filter, Sparkles, ExternalLink, ArrowUpDown, Copy, Zap, BarChart3, DollarSign, Users, Flame, ChevronRight } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts'
 import { useStore } from '@/lib/store-context'
+import { useToast } from '@/components/ui/toast'
+import { Modal } from '@/components/ui/modal'
 
 const tabs = ['渠道管理', '套餐管理', '商品分析']
 
@@ -78,7 +80,12 @@ const platformIcon: Record<string, string> = { 美团: '🟡', 大众点评: '�
 
 export default function ProductPage() {
   const [activeTab, setActiveTab] = useState(0)
+  const [showCreatePkg, setShowCreatePkg] = useState(false)
+  const [showEditStore, setShowEditStore] = useState(false)
+  const [storeForm, setStoreForm] = useState({ name: storeInfo.name, address: storeInfo.address, phone: storeInfo.phone, hours: storeInfo.hours })
+  const [pkgForm, setPkgForm] = useState({ name: '', price: '', originalPrice: '', items: '' })
   const { currentStore } = useStore()
+  const { toast } = useToast()
 
   return (
     <div className="space-y-6">
@@ -115,7 +122,7 @@ export default function ProductPage() {
           <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold text-gray-900">门店基础信息（全平台同步）</h3>
-              <button className="text-xs text-primary-600 flex items-center gap-1"><Edit className="w-3 h-3" />编辑</button>
+              <button onClick={() => setShowEditStore(true)} className="text-xs text-primary-600 flex items-center gap-1"><Edit className="w-3 h-3" />编辑</button>
             </div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
               {[
@@ -154,9 +161,9 @@ export default function ProductPage() {
                     )}
                   </div>
                   {ch.status === 'active' ? (
-                    <button className="px-3 py-1.5 text-xs text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 border">管理</button>
+                    <button onClick={() => toast('info', `${ch.name}渠道管理页开发中`)} className="px-3 py-1.5 text-xs text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 border">管理</button>
                   ) : (
-                    <button className="px-3 py-1.5 text-xs text-white bg-primary-600 rounded-lg hover:bg-primary-700">开通</button>
+                    <button onClick={() => toast('success', `已申请开通${ch.name}渠道`)} className="px-3 py-1.5 text-xs text-white bg-primary-600 rounded-lg hover:bg-primary-700">开通</button>
                   )}
                 </div>
               </div>
@@ -174,7 +181,7 @@ export default function ProductPage() {
               <span className="text-xs px-2 py-0.5 bg-green-50 text-green-600 rounded-full">{packages.filter(p => p.status === 'active').length} 在售</span>
               <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">{packages.filter(p => p.status === 'new').length} 新品</span>
             </div>
-            <button className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-1"><Plus className="w-4 h-4" />创建套餐</button>
+            <button onClick={() => setShowCreatePkg(true)} className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-1"><Plus className="w-4 h-4" />创建套餐</button>
           </div>
 
           {packages.map(pkg => (
@@ -205,7 +212,7 @@ export default function ProductPage() {
                     ))}
                   </div>
                 </div>
-                <button className="shrink-0 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg"><Edit className="w-4 h-4" /></button>
+                <button onClick={() => toast('info', `正在编辑「${pkg.name}」`)} className="shrink-0 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg"><Edit className="w-4 h-4" /></button>
               </div>
             </div>
           ))}
@@ -299,6 +306,38 @@ export default function ProductPage() {
           </div>
         </div>
       )}
+
+      {/* Create Package Modal */}
+      <Modal open={showCreatePkg} onClose={() => setShowCreatePkg(false)} title="创建新套餐" footer={
+        <>
+          <button onClick={() => setShowCreatePkg(false)} className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">取消</button>
+          <button onClick={() => { toast('success', `套餐「${pkgForm.name || '新套餐'}」已创建`); setShowCreatePkg(false); setPkgForm({ name: '', price: '', originalPrice: '', items: '' }) }} className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700">创建</button>
+        </>
+      }>
+        <div className="space-y-4">
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">套餐名称</label><input value={pkgForm.name} onChange={e => setPkgForm(f => ({ ...f, name: e.target.value }))} placeholder="例：春季限定双人餐" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none" /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">售价(¥)</label><input type="number" value={pkgForm.price} onChange={e => setPkgForm(f => ({ ...f, price: e.target.value }))} placeholder="88" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none" /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">原价(¥)</label><input type="number" value={pkgForm.originalPrice} onChange={e => setPkgForm(f => ({ ...f, originalPrice: e.target.value }))} placeholder="108" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none" /></div>
+          </div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">包含菜品（逗号分隔）</label><textarea value={pkgForm.items} onChange={e => setPkgForm(f => ({ ...f, items: e.target.value }))} placeholder="莲藕排骨汤, 凉拌藕丁, 米饭x2" rows={2} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none" /></div>
+        </div>
+      </Modal>
+
+      {/* Edit Store Info Modal */}
+      <Modal open={showEditStore} onClose={() => setShowEditStore(false)} title="编辑门店信息" footer={
+        <>
+          <button onClick={() => setShowEditStore(false)} className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">取消</button>
+          <button onClick={() => { toast('success', '门店信息已更新，正在同步到各平台...'); setShowEditStore(false) }} className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700">保存并同步</button>
+        </>
+      }>
+        <div className="space-y-4">
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">店名</label><input value={storeForm.name} onChange={e => setStoreForm(f => ({ ...f, name: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none" /></div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">地址</label><input value={storeForm.address} onChange={e => setStoreForm(f => ({ ...f, address: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none" /></div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">电话</label><input value={storeForm.phone} onChange={e => setStoreForm(f => ({ ...f, phone: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none" /></div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">营业时间</label><input value={storeForm.hours} onChange={e => setStoreForm(f => ({ ...f, hours: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none" /></div>
+        </div>
+      </Modal>
     </div>
   )
 }

@@ -1,7 +1,70 @@
 'use client'
-import { Store, Link, Bell, Sparkles, Save } from 'lucide-react'
+import { useState } from 'react'
+import { Store, Link, Bell, Sparkles, Save, Shield, Users, Plus, Trash2, Check, X } from 'lucide-react'
+import { useToast } from '@/components/ui/toast'
+import { Modal } from '@/components/ui/modal'
+
+const initialPlatforms = [
+  { platform: '美团商家', status: '已绑定', account: 'hubeioutang_fd' },
+  { platform: '大众点评', status: '已绑定', account: 'hubeioutang_fd' },
+  { platform: '抖音来客', status: '已绑定', account: '湖北藕汤纺大店' },
+  { platform: '高德商家', status: '未绑定', account: '' },
+  { platform: '京东外卖', status: '已绑定', account: 'hubei_outang_001' },
+  { platform: '淘宝闪购', status: '未绑定', account: '' },
+]
+
+const initialNotifications = [
+  { id: 1, label: '差评即时通知', desc: '收到差评后立即推送微信通知', enabled: true },
+  { id: 2, label: '日报推送', desc: '每天20:00推送经营日报', enabled: true },
+  { id: 3, label: '周报推送', desc: '每周一09:00推送经营周报', enabled: false },
+  { id: 4, label: '竞品动态提醒', desc: '竞品有新活动时推送通知', enabled: true },
+]
+
+const employees = [
+  { id: 1, name: '张店长', role: '店长', phone: '138****6688', stores: ['纺大店'] },
+  { id: 2, name: '李经理', role: '区域经理', phone: '139****5566', stores: ['纺大店', '光谷店', '汉口店'] },
+  { id: 3, name: '小美', role: '运营专员', phone: '137****4455', stores: ['纺大店'] },
+]
 
 export default function SettingsPage() {
+  const { toast } = useToast()
+  const [activeTone, setActiveTone] = useState(0)
+  const [signature, setSignature] = useState('湖北藕汤·用心做好每一碗汤 🍲')
+  const [notifications, setNotifications] = useState(initialNotifications)
+  const [platforms, setPlatforms] = useState(initialPlatforms)
+  const [storeFields, setStoreFields] = useState({
+    name: '湖北藕汤（纺大店）', address: '武汉市洪山区纺织大学南门',
+    phone: '027-8888-6666', hours: '10:00 - 22:00',
+  })
+  const [showEmployeeModal, setShowEmployeeModal] = useState(false)
+  const [empForm, setEmpForm] = useState({ name: '', role: '运营专员', phone: '' })
+  const [saving, setSaving] = useState(false)
+
+  const toggleNotification = (id: number) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, enabled: !n.enabled } : n))
+  }
+
+  const handleBind = (index: number) => {
+    const p = platforms[index]
+    if (p.status === '已绑定') {
+      if (confirm(`确定解绑${p.platform}？`)) {
+        setPlatforms(prev => prev.map((pp, i) => i === index ? { ...pp, status: '未绑定', account: '' } : pp))
+        toast('info', `${p.platform}已解绑`)
+      }
+    } else {
+      const account = prompt(`请输入${p.platform}账号：`)
+      if (account) {
+        setPlatforms(prev => prev.map((pp, i) => i === index ? { ...pp, status: '已绑定', account } : pp))
+        toast('success', `${p.platform}已绑定`)
+      }
+    }
+  }
+
+  const handleSave = () => {
+    setSaving(true)
+    setTimeout(() => { setSaving(false); toast('success', '设置已保存') }, 800)
+  }
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">系统设置</h1>
@@ -13,17 +76,15 @@ export default function SettingsPage() {
           <h3 className="font-semibold text-gray-900">门店信息</h3>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {[
-            { label: '门店名称', value: '湖北藕汤（纺大店）' },
-            { label: '门店地址', value: '武汉市洪山区纺织大学南门' },
-            { label: '联系电话', value: '027-8888-6666' },
-            { label: '营业时间', value: '10:00 - 22:00' },
-          ].map(f => (
-            <div key={f.label}>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{f.label}</label>
-              <input defaultValue={f.value} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none" />
-            </div>
-          ))}
+          {Object.entries(storeFields).map(([key, value]) => {
+            const labels: Record<string, string> = { name: '门店名称', address: '门店地址', phone: '联系电话', hours: '营业时间' }
+            return (
+              <div key={key}>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{labels[key]}</label>
+                <input value={value} onChange={e => setStoreFields(prev => ({ ...prev, [key]: e.target.value }))} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none" />
+              </div>
+            )
+          })}
         </div>
       </div>
 
@@ -34,22 +95,40 @@ export default function SettingsPage() {
           <h3 className="font-semibold text-gray-900">平台账号绑定</h3>
         </div>
         <div className="space-y-3">
-          {[
-            { platform: '美团商家', status: '已绑定', account: 'hubeioutang_fd' },
-            { platform: '大众点评', status: '已绑定', account: 'hubeioutang_fd' },
-            { platform: '抖音来客', status: '已绑定', account: '湖北藕汤纺大店' },
-            { platform: '高德商家', status: '未绑定', account: '' },
-            { platform: '京东外卖', status: '已绑定', account: 'hubei_outang_001' },
-            { platform: '淘宝闪购', status: '未绑定', account: '' },
-          ].map(p => (
+          {platforms.map((p, i) => (
             <div key={p.platform} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
               <div>
                 <p className="text-sm font-medium text-gray-900">{p.platform}</p>
                 {p.account && <p className="text-xs text-gray-400">{p.account}</p>}
               </div>
-              <button className={`text-xs px-3 py-1.5 rounded-lg ${p.status === '已绑定' ? 'bg-green-50 text-green-600' : 'bg-primary-600 text-white hover:bg-primary-700'}`}>
+              <button onClick={() => handleBind(i)} className={`text-xs px-3 py-1.5 rounded-lg ${p.status === '已绑定' ? 'bg-green-50 text-green-600 hover:bg-red-50 hover:text-red-600' : 'bg-primary-600 text-white hover:bg-primary-700'}`}>
                 {p.status === '已绑定' ? '已绑定' : '去绑定'}
               </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 员工管理 */}
+      <div className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Users className="w-5 h-5 text-primary-600" />
+            <h3 className="font-semibold text-gray-900">员工管理</h3>
+          </div>
+          <button onClick={() => setShowEmployeeModal(true)} className="text-xs px-3 py-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-1"><Plus className="w-3 h-3" />添加员工</button>
+        </div>
+        <div className="space-y-2">
+          {employees.map(emp => (
+            <div key={emp.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center text-sm font-medium text-primary-700">{emp.name[0]}</div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{emp.name}</p>
+                  <p className="text-xs text-gray-500">{emp.role} · {emp.phone} · {emp.stores.join('、')}</p>
+                </div>
+              </div>
+              <button onClick={() => toast('info', `编辑${emp.name}的权限`)} className="text-xs text-primary-600 hover:text-primary-700">编辑</button>
             </div>
           ))}
         </div>
@@ -66,13 +145,14 @@ export default function SettingsPage() {
             <label className="block text-sm font-medium text-gray-700 mb-2">回复语气</label>
             <div className="flex gap-2">
               {['亲切温暖', '专业正式', '活泼俏皮'].map((tone, i) => (
-                <button key={tone} className={`px-4 py-2 text-sm rounded-lg border transition ${i === 0 ? 'border-primary-600 bg-primary-50 text-primary-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>{tone}</button>
+                <button key={tone} onClick={() => { setActiveTone(i); toast('success', `回复语气已切换为「${tone}」`) }}
+                  className={`px-4 py-2 text-sm rounded-lg border transition ${i === activeTone ? 'border-primary-600 bg-primary-50 text-primary-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>{tone}</button>
               ))}
             </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">自定义签名</label>
-            <input defaultValue="湖北藕汤·用心做好每一碗汤 🍲" className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none" />
+            <input value={signature} onChange={e => setSignature(e.target.value)} className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none" />
           </div>
         </div>
       </div>
@@ -83,27 +163,40 @@ export default function SettingsPage() {
           <Bell className="w-5 h-5 text-primary-600" />
           <h3 className="font-semibold text-gray-900">通知设置</h3>
         </div>
-        {[
-          { label: '差评即时通知', desc: '收到差评后立即推送微信通知', enabled: true },
-          { label: '日报推送', desc: '每天20:00推送经营日报', enabled: true },
-          { label: '周报推送', desc: '每周一09:00推送经营周报', enabled: false },
-          { label: '竞品动态提醒', desc: '竞品有新活动时推送通知', enabled: true },
-        ].map(n => (
-          <div key={n.label} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
+        {notifications.map(n => (
+          <div key={n.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
             <div>
               <p className="text-sm font-medium text-gray-900">{n.label}</p>
               <p className="text-xs text-gray-500 mt-0.5">{n.desc}</p>
             </div>
-            <div className={`w-11 h-6 rounded-full p-0.5 cursor-pointer transition ${n.enabled ? 'bg-primary-600' : 'bg-gray-200'}`}>
+            <button onClick={() => toggleNotification(n.id)} className={`w-11 h-6 rounded-full p-0.5 transition ${n.enabled ? 'bg-primary-600' : 'bg-gray-200'}`}>
               <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${n.enabled ? 'translate-x-5' : ''}`} />
-            </div>
+            </button>
           </div>
         ))}
       </div>
 
-      <button className="px-6 py-3 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition flex items-center gap-2">
-        <Save className="w-4 h-4" />保存设置
+      <button onClick={handleSave} disabled={saving} className="px-6 py-3 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition flex items-center gap-2 disabled:opacity-60">
+        <Save className="w-4 h-4" />{saving ? '保存中...' : '保存设置'}
       </button>
+
+      {/* Add Employee Modal */}
+      <Modal open={showEmployeeModal} onClose={() => setShowEmployeeModal(false)} title="添加员工" footer={
+        <>
+          <button onClick={() => setShowEmployeeModal(false)} className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">取消</button>
+          <button onClick={() => { toast('success', `员工「${empForm.name || '新员工'}」已添加`); setShowEmployeeModal(false); setEmpForm({ name: '', role: '运营专员', phone: '' }) }} className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700">添加</button>
+        </>
+      }>
+        <div className="space-y-4">
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">姓名</label><input value={empForm.name} onChange={e => setEmpForm(f => ({ ...f, name: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none" /></div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">角色</label>
+            <select value={empForm.role} onChange={e => setEmpForm(f => ({ ...f, role: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none">
+              {['店长', '区域经理', '运营专员', '客服'].map(r => <option key={r}>{r}</option>)}
+            </select>
+          </div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">手机号</label><input value={empForm.phone} onChange={e => setEmpForm(f => ({ ...f, phone: e.target.value }))} placeholder="138xxxx6688" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none" /></div>
+        </div>
+      </Modal>
     </div>
   )
 }

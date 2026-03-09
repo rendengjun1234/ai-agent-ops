@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { StoreProvider, useStore, allStores, chainOverview } from '@/lib/store-context'
 import type { StoreInfo } from '@/lib/store-context'
+import { ToastProvider } from '@/components/ui/toast'
 
 const navItems = [
   { href: '/dashboard', label: '经营驾驶舱', icon: LayoutDashboard },
@@ -199,7 +200,9 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <StoreProvider>
-      <DashboardContent>{children}</DashboardContent>
+      <ToastProvider>
+        <DashboardContent>{children}</DashboardContent>
+      </ToastProvider>
     </StoreProvider>
   )
 }

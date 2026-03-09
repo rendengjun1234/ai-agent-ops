@@ -2,6 +2,8 @@
 import { useState } from 'react'
 import { Bot, Zap, MessageSquare, FileText, DollarSign, Bell, Package, Clock, CheckCircle, AlertTriangle, Send, Users, Plus, Calendar, Settings, TrendingUp, Eye, Heart } from 'lucide-react'
 import { useStore } from '@/lib/store-context'
+import { useToast } from '@/components/ui/toast'
+import { Modal } from '@/components/ui/modal'
 
 // 自动化规则
 const autoRules = [
@@ -58,12 +60,16 @@ const scheduledPushes = [
 
 export default function AutoOpsPage() {
   const [ruleStates, setRuleStates] = useState(autoRules.map(r => r.enabled))
+  const [showPushModal, setShowPushModal] = useState(false)
+  const [pushForm, setPushForm] = useState({ time: '', target: '全部粉丝群', content: '' })
   const { currentStore } = useStore()
+  const { toast } = useToast()
 
   const toggleRule = (index: number) => {
     const next = [...ruleStates]
     next[index] = !next[index]
     setRuleStates(next)
+    toast(next[index] ? 'success' : 'info', `${autoRules[index].name}已${next[index] ? '启用' : '关闭'}`)
   }
 
   const totalAutoActions = autoRules.reduce((s, r) => s + r.todayCount, 0)
@@ -157,7 +163,7 @@ export default function AutoOpsPage() {
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
         <div className="p-5 border-b border-gray-100 flex items-center justify-between">
           <h3 className="font-semibold text-gray-900 flex items-center gap-2"><FileText className="w-5 h-5 text-indigo-500" />自动报表推送</h3>
-          <button className="text-xs px-3 py-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-1"><Plus className="w-3 h-3" />新建报表</button>
+          <button onClick={() => toast('info', '报表配置功能开发中')} className="text-xs px-3 py-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-1"><Plus className="w-3 h-3" />新建报表</button>
         </div>
         <div className="divide-y divide-gray-50">
           {[
@@ -244,7 +250,7 @@ export default function AutoOpsPage() {
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
           <div className="p-5 border-b border-gray-100 flex items-center justify-between">
             <h3 className="font-semibold text-gray-900 flex items-center gap-2"><Calendar className="w-5 h-5 text-blue-500" />定时推送</h3>
-            <button className="text-xs px-3 py-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-1"><Plus className="w-3 h-3" />新建推送</button>
+            <button onClick={() => setShowPushModal(true)} className="text-xs px-3 py-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-1"><Plus className="w-3 h-3" />新建推送</button>
           </div>
           <div className="divide-y divide-gray-50">
             {scheduledPushes.map(push => (
@@ -265,6 +271,32 @@ export default function AutoOpsPage() {
           </div>
         </div>
       </div>
+
+      {/* Push Modal */}
+      <Modal open={showPushModal} onClose={() => setShowPushModal(false)} title="新建定时推送" footer={
+        <>
+          <button onClick={() => setShowPushModal(false)} className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">取消</button>
+          <button onClick={() => { toast('success', '推送任务已创建'); setShowPushModal(false); setPushForm({ time: '', target: '全部粉丝群', content: '' }) }} className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700">创建</button>
+        </>
+      }>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">推送时间</label>
+            <input type="datetime-local" value={pushForm.time} onChange={e => setPushForm(f => ({ ...f, time: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">目标群</label>
+            <select value={pushForm.target} onChange={e => setPushForm(f => ({ ...f, target: e.target.value }))} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none">
+              <option>全部粉丝群</option>
+              {wechatGroups.map(g => <option key={g.id}>{g.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">推送内容</label>
+            <textarea value={pushForm.content} onChange={e => setPushForm(f => ({ ...f, content: e.target.value }))} placeholder="输入推送内容..." rows={3} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none" />
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }
