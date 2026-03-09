@@ -11,7 +11,7 @@ import { StoreProvider, useStore, allStores, chainOverview } from '@/lib/store-c
 import type { StoreInfo } from '@/lib/store-context'
 
 const navItems = [
-  { href: '/dashboard', label: '工作台', icon: LayoutDashboard },
+  { href: '/dashboard', label: 'AI工作台', icon: LayoutDashboard },
   { href: '/dashboard/review', label: '评价Agent', icon: MessageSquare, badge: 3 },
   { href: '/dashboard/analytics', label: '数据Agent', icon: BarChart3 },
   { href: '/dashboard/traffic', label: '获客Agent', icon: Megaphone },
@@ -19,7 +19,6 @@ const navItems = [
   { href: '/dashboard/sales', label: '销售Agent', icon: Target },
   { href: '/dashboard/marketing', label: '营销Agent', icon: Zap },
   { href: '/dashboard/official-ops', label: '官号运营', icon: Smartphone },
-  { href: '/dashboard/ops', label: '运营Agent', icon: ClipboardList },
   { href: '/dashboard/service', label: '客服Agent', icon: Headphones },
   { href: '/dashboard/appeal', label: '申诉Agent', icon: Shield },
   { href: '/dashboard/patrol', label: '巡检Agent', icon: Radar },
