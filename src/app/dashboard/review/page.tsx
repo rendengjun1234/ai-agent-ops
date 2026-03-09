@@ -1,234 +1,139 @@
 'use client'
-import { useState, useMemo } from 'react'
-import { Star, Search, MessageSquare, Send, Sparkles, ThumbsUp, ThumbsDown, Minus, TrendingUp, TrendingDown, Check, X, ChevronDown, Copy, Download, Filter, Image as ImageIcon, Clock, BarChart3, Users, Zap, ArrowUpDown } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area, ComposedChart } from 'recharts'
-import { mockPlatformStats } from '@/lib/mock-data'
-import { detailedReviews, replyTemplates, competitorData, reviewDailyStats, keywordAnalysis, inviteReviewConfig } from '@/lib/review-data'
-import type { Review } from '@/lib/mock-data'
+import { useState } from 'react'
+import { Star, AlertTriangle, CheckCircle, Clock, TrendingUp, TrendingDown, ChevronRight, MessageSquare, Eye, Shield, Sparkles, Target, Users, BarChart3, Send, Copy, ThumbsUp, ThumbsDown, Flame, Filter, Search, Image as ImageIcon, Video, ExternalLink, ArrowRight, Zap } from 'lucide-react'
+import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, PieChart, Pie, Cell } from 'recharts'
+import { reviews, remediationTasks, tagTrends, storeComparison, goodReviewAssets, reviewKPIs, type Review } from '@/lib/review-system-data'
+import { useStore } from '@/lib/store-context'
 
-const tabs = ['全部评价', '待回复', '差评预警', '趋势分析', '竞品对比', '邀评管理']
-const platformFilters = ['全部', '美团', '大众点评', '抖音', '高德', '京东外卖', '淘宝闪购']
-const ratingFilters = ['全部评分', '5星', '4星', '3星', '2星', '1星']
-const sortOptions = ['最新优先', '评分最高', '评分最低']
-const COLORS = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899']
-const TREND_COLORS = { up: 'text-red-500', down: 'text-green-500', stable: 'text-gray-400' }
+const tabs = ['总览', '评价处理台', '问题整改', '经营洞察']
+const COLORS = ['#ef4444', '#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ec4899']
 
-function StarRating({ rating, size = 'sm' }: { rating: number; size?: 'sm' | 'lg' }) {
-  const s = size === 'lg' ? 'w-5 h-5' : 'w-3.5 h-3.5'
-  return (
-    <div className="flex gap-0.5">
-      {[1, 2, 3, 4, 5].map(i => (
-        <Star key={i} className={`${s} ${i <= rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200'}`} />
-      ))}
-    </div>
-  )
+const riskConfig = {
+  P1: { label: 'P1 严重', color: 'bg-red-100 text-red-700', dot: 'bg-red-500' },
+  P2: { label: 'P2 高优', color: 'bg-orange-100 text-orange-700', dot: 'bg-orange-500' },
+  P3: { label: 'P3 中优', color: 'bg-blue-100 text-blue-700', dot: 'bg-blue-500' },
+  P4: { label: 'P4 低优', color: 'bg-gray-100 text-gray-600', dot: 'bg-gray-400' },
 }
 
-function ReviewCard({ review, selected, onSelect, onReply, onUseTemplate }: {
-  review: Review
-  selected: boolean
-  onSelect: (id: string) => void
-  onReply: (id: string, text: string) => void
-  onUseTemplate: (review: Review) => void
-}) {
-  const [expanded, setExpanded] = useState(false)
-  const [replyText, setReplyText] = useState('')
-  const [showTemplates, setShowTemplates] = useState(false)
+const statusConfig = {
+  pending: { label: '待处理', color: 'bg-red-50 text-red-600' },
+  replied: { label: '已回复', color: 'bg-green-50 text-green-600' },
+  escalated: { label: '已升级', color: 'bg-purple-50 text-purple-600' },
+  closed: { label: '已关闭', color: 'bg-gray-100 text-gray-500' },
+}
 
-  const sentimentIcon = review.sentiment === 'positive'
-    ? <ThumbsUp className="w-3.5 h-3.5 text-green-500" />
-    : review.sentiment === 'negative'
-    ? <ThumbsDown className="w-3.5 h-3.5 text-red-500" />
-    : <Minus className="w-3.5 h-3.5 text-yellow-500" />
+const taskStatusConfig = {
+  open: { label: '待处理', color: 'bg-red-50 text-red-600' },
+  in_progress: { label: '整改中', color: 'bg-blue-50 text-blue-600' },
+  resolved: { label: '已完成', color: 'bg-green-50 text-green-600' },
+  verified: { label: '已验证', color: 'bg-purple-50 text-purple-600' },
+}
 
-  const sentimentLabel = review.sentiment === 'positive' ? '好评' : review.sentiment === 'negative' ? '差评' : '中评'
-  const sentimentColor = review.sentiment === 'positive' ? 'bg-green-50 text-green-600' : review.sentiment === 'negative' ? 'bg-red-50 text-red-500' : 'bg-yellow-50 text-yellow-600'
-
+function ReviewDetailPanel({ review, onClose }: { review: Review; onClose: () => void }) {
   return (
-    <div className={`bg-white rounded-xl border-2 shadow-sm transition ${selected ? 'border-primary-400 ring-2 ring-primary-100' : 'border-gray-100'}`}>
-      <div className="p-5">
-        {/* Header */}
-        <div className="flex items-start gap-3">
-          {/* Checkbox */}
-          {!review.replied && (
-            <button onClick={() => onSelect(review.id)} className={`mt-1 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition ${selected ? 'bg-primary-600 border-primary-600' : 'border-gray-300 hover:border-primary-400'}`}>
-              {selected && <Check className="w-3 h-3 text-white" />}
-            </button>
-          )}
-
-          {/* Avatar */}
-          <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center text-sm font-medium text-primary-700 shrink-0">
-            {review.userName[0]}
+    <div className="fixed inset-0 z-50 flex">
+      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
+      <div className="absolute right-0 top-0 bottom-0 w-full max-w-lg bg-white shadow-2xl overflow-y-auto">
+        <div className="p-6 space-y-5">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-lg text-gray-900">评价详情</h3>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
           </div>
 
-          {/* Info */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-medium text-gray-900">{review.userName}</span>
-              <span className={`text-xs px-1.5 py-0.5 rounded ${sentimentColor} flex items-center gap-0.5`}>
-                {sentimentIcon}{sentimentLabel}
-              </span>
-              <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded">{review.platform}</span>
-            </div>
-            <div className="flex items-center gap-3 mt-1">
-              <StarRating rating={review.rating} />
-              <span className="text-xs text-gray-400">{new Date(review.date).toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-              {review.images.length > 0 && (
-                <span className="text-xs text-gray-400 flex items-center gap-0.5">
-                  <ImageIcon className="w-3 h-3" />{review.images.length}张图
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Status */}
-          <div className="shrink-0">
-            {review.replied ? (
-              <span className="text-xs px-2 py-1 bg-green-50 text-green-600 rounded-full flex items-center gap-1">
-                <Check className="w-3 h-3" />已回复
-              </span>
-            ) : (
-              <span className="text-xs px-2 py-1 bg-red-50 text-red-500 rounded-full flex items-center gap-1">
-                <Clock className="w-3 h-3" />待回复
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="mt-3 ml-0 lg:ml-[52px]">
-          <p className="text-sm text-gray-700 leading-relaxed">{review.content}</p>
-
-          {/* Tags */}
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            {review.tags.map(tag => (
-              <span key={tag} className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">#{tag}</span>
-            ))}
-          </div>
-
-          {/* Reply */}
-          {review.replied && review.replyContent && (
-            <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
-              <div className="flex items-center gap-1.5 mb-1">
-                <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
-                <span className="text-xs font-medium text-blue-600">商家回复</span>
+          {/* 原始评价 */}
+          <div className="p-4 bg-gray-50 rounded-xl">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span>{review.platformIcon}</span>
+                <span className="text-sm font-medium">{review.author}</span>
+                <span className="text-xs text-gray-400">{review.platform} · {review.store}</span>
               </div>
-              <p className="text-sm text-blue-800">{review.replyContent}</p>
+              <div className="flex gap-0.5">
+                {[1,2,3,4,5].map(i => (
+                  <Star key={i} className={`w-4 h-4 ${i <= review.rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200'}`} />
+                ))}
+              </div>
             </div>
-          )}
+            <p className="text-sm text-gray-700 leading-relaxed">{review.content}</p>
+            <div className="flex items-center gap-2 mt-2">
+              {review.hasImage && <span className="text-xs text-gray-400 flex items-center gap-1"><ImageIcon className="w-3 h-3" />有图</span>}
+              {review.hasVideo && <span className="text-xs text-gray-400 flex items-center gap-1"><Video className="w-3 h-3" />有视频</span>}
+              <span className="text-xs text-gray-400">{review.timeAgo}</span>
+            </div>
+          </div>
 
-          {/* Reply actions for unreplied */}
-          {!review.replied && (
-            <div className="mt-3">
-              <button onClick={() => setExpanded(!expanded)} className="flex items-center gap-1.5 text-sm text-primary-600 hover:text-primary-700 font-medium">
-                <Sparkles className="w-4 h-4" />
-                {expanded ? '收起回复' : 'AI智能回复'}
-              </button>
-
-              {expanded && (
-                <div className="mt-3 space-y-3">
-                  {/* AI suggestion */}
-                  {review.aiSuggestion && (
-                    <div className="p-3 bg-purple-50 rounded-lg border border-purple-100">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-medium text-purple-600 flex items-center gap-1">
-                          <Sparkles className="w-3 h-3" />AI推荐回复
-                        </span>
-                        <button onClick={() => setReplyText(review.aiSuggestion || '')} className="text-xs text-purple-600 hover:text-purple-700 flex items-center gap-0.5">
-                          <Copy className="w-3 h-3" />使用
-                        </button>
-                      </div>
-                      <p className="text-sm text-purple-800">{review.aiSuggestion}</p>
-                    </div>
-                  )}
-
-                  {/* Template selector */}
-                  <div>
-                    <button onClick={() => setShowTemplates(!showTemplates)} className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1">
-                      <ChevronDown className={`w-3 h-3 transition ${showTemplates ? 'rotate-180' : ''}`} />
-                      从模板选择
-                    </button>
-                    {showTemplates && (
-                      <div className="mt-2 grid grid-cols-1 lg:grid-cols-2 gap-2">
-                        {replyTemplates
-                          .filter(t => t.category === review.sentiment || t.category === 'neutral')
-                          .map(t => (
-                            <button key={t.id} onClick={() => { setReplyText(t.content); setShowTemplates(false) }}
-                              className="text-left p-2 text-xs bg-gray-50 rounded-lg hover:bg-gray-100 border border-gray-100 transition">
-                              <span className="font-medium text-gray-700">{t.name}</span>
-                              <p className="text-gray-500 mt-0.5 line-clamp-2">{t.content}</p>
-                            </button>
-                          ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Reply input */}
-                  <textarea
-                    value={replyText}
-                    onChange={e => setReplyText(e.target.value)}
-                    placeholder="输入回复内容..."
-                    className="w-full p-3 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none resize-none"
-                    rows={3}
-                  />
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-400">{replyText.length}/500字</span>
-                    <div className="flex gap-2">
-                      <button onClick={() => { setExpanded(false); setReplyText('') }} className="px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded-lg">取消</button>
-                      <button
-                        onClick={() => { onReply(review.id, replyText); setExpanded(false); setReplyText('') }}
-                        disabled={!replyText.trim()}
-                        className="px-4 py-1.5 text-xs bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-1 disabled:opacity-50"
-                      >
-                        <Send className="w-3 h-3" />发送回复
-                      </button>
-                    </div>
-                  </div>
+          {/* AI分析 */}
+          <div className="p-4 bg-purple-50 rounded-xl border border-purple-100">
+            <h4 className="font-medium text-gray-900 mb-2 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-purple-500" />AI分析
+            </h4>
+            <p className="text-sm text-gray-700 mb-3">{review.aiSummary}</p>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 w-16">风险等级</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${riskConfig[review.riskLevel].color}`}>{riskConfig[review.riskLevel].label}</span>
+              </div>
+              {review.rootCause && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500 w-16">问题归因</span>
+                  <span className="text-xs text-gray-700">{review.rootCause}</span>
+                </div>
+              )}
+              {review.mentionedPeriod && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500 w-16">涉及时段</span>
+                  <span className="text-xs text-gray-700">{review.mentionedPeriod}</span>
+                </div>
+              )}
+              {review.mentionedDish && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500 w-16">涉及菜品</span>
+                  <span className="text-xs text-gray-700">{review.mentionedDish}</span>
                 </div>
               )}
             </div>
+          </div>
+
+          {/* AI标签 */}
+          <div>
+            <h4 className="font-medium text-gray-900 mb-2">经营标签</h4>
+            <div className="flex flex-wrap gap-2">
+              {review.tags.map((tag, i) => (
+                <span key={i} className={`text-xs px-2.5 py-1 rounded-full ${tag.sentiment === 'positive' ? 'bg-green-50 text-green-700' : tag.sentiment === 'negative' ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
+                  {tag.primary}/{tag.secondary}
+                  <span className="ml-1 opacity-60">{'●'.repeat(tag.intensity)}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* AI建议回复 */}
+          <div className="p-4 bg-green-50 rounded-xl border border-green-100">
+            <h4 className="font-medium text-gray-900 mb-2 flex items-center gap-2">
+              <MessageSquare className="w-4 h-4 text-green-600" />AI建议回复
+            </h4>
+            <p className="text-sm text-gray-700 leading-relaxed">{review.aiReply}</p>
+            <div className="flex gap-2 mt-3">
+              <button className="flex-1 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 flex items-center justify-center gap-1">
+                <Send className="w-4 h-4" />采纳并发送
+              </button>
+              <button className="px-3 py-2 bg-white text-sm text-gray-600 rounded-lg border border-gray-200 hover:bg-gray-50 flex items-center gap-1">
+                <Copy className="w-4 h-4" />编辑
+              </button>
+            </div>
+          </div>
+
+          {/* 是否需要整改 */}
+          {review.rating <= 2 && (
+            <div className="p-4 bg-yellow-50 rounded-xl border border-yellow-200">
+              <h4 className="font-medium text-gray-900 mb-2">是否需要创建整改任务？</h4>
+              <p className="text-xs text-gray-500 mb-3">系统检测到类似问题近7天出现{review.tags.length * 2}次</p>
+              <button className="w-full py-2 bg-yellow-500 text-white text-sm rounded-lg hover:bg-yellow-600 flex items-center justify-center gap-1">
+                <Target className="w-4 h-4" />创建整改任务
+              </button>
+            </div>
           )}
         </div>
-      </div>
-    </div>
-  )
-}
-
-// 批量回复面板
-function BatchReplyPanel({ count, onBatchReply, onClear }: { count: number; onBatchReply: (text: string) => void; onClear: () => void }) {
-  const [text, setText] = useState('')
-  const [showTemplates, setShowTemplates] = useState(false)
-
-  if (count === 0) return null
-
-  return (
-    <div className="bg-primary-50 border border-primary-200 rounded-xl p-4 sticky top-0 z-10">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-sm font-medium text-primary-700">已选择 {count} 条评价</span>
-        <button onClick={onClear} className="text-xs text-primary-600 hover:text-primary-700">取消选择</button>
-      </div>
-      <div className="flex gap-2 mb-2">
-        {replyTemplates.slice(0, 3).map(t => (
-          <button key={t.id} onClick={() => setText(t.content)} className="text-xs px-3 py-1.5 bg-white border border-primary-200 rounded-lg hover:bg-primary-100 text-primary-700 truncate max-w-[200px]">
-            {t.name}
-          </button>
-        ))}
-      </div>
-      <div className="flex gap-2">
-        <textarea
-          value={text}
-          onChange={e => setText(e.target.value)}
-          placeholder="输入批量回复内容（AI会根据每条评价自动调整措辞）..."
-          className="flex-1 p-2 text-sm border border-primary-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none resize-none"
-          rows={2}
-        />
-        <button
-          onClick={() => { onBatchReply(text); setText('') }}
-          disabled={!text.trim()}
-          className="px-4 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 disabled:opacity-50 shrink-0"
-        >
-          批量回复 ({count})
-        </button>
       </div>
     </div>
   )
@@ -236,70 +141,37 @@ function BatchReplyPanel({ count, onBatchReply, onClear }: { count: number; onBa
 
 export default function ReviewPage() {
   const [activeTab, setActiveTab] = useState(0)
-  const [platform, setPlatform] = useState('全部')
-  const [ratingFilter, setRatingFilter] = useState('全部评分')
-  const [search, setSearch] = useState('')
-  const [sortBy, setSortBy] = useState('最新优先')
-  const [reviews, setReviews] = useState(detailedReviews)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [showFilters, setShowFilters] = useState(false)
+  const [selectedReview, setSelectedReview] = useState<Review | null>(null)
+  const [filterPlatform, setFilterPlatform] = useState('全部')
+  const { currentStore } = useStore()
 
-  // Stats
-  const totalReviews = reviews.length
-  const unrepliedCount = reviews.filter(r => !r.replied).length
-  const negativeCount = reviews.filter(r => r.sentiment === 'negative').length
-  const positiveRate = Math.round(reviews.filter(r => r.sentiment === 'positive').length / totalReviews * 100)
-  const avgRating = +(reviews.reduce((s, r) => s + r.rating, 0) / totalReviews).toFixed(1)
+  const pendingCount = reviews.filter(r => r.status === 'pending').length
+  const p1Count = reviews.filter(r => r.riskLevel === 'P1' && r.status === 'pending').length
+  const avgRating = +(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)
+  const negRate = +(reviews.filter(r => r.rating <= 2).length / reviews.length * 100).toFixed(1)
 
-  // Filter
-  const filtered = useMemo(() => {
-    let result = reviews.filter(r => {
-      if (activeTab === 1 && r.replied) return false
-      if (activeTab === 2 && r.sentiment !== 'negative') return false
-      if (platform !== '全部' && r.platform !== platform) return false
-      if (ratingFilter !== '全部评分') {
-        const stars = parseInt(ratingFilter)
-        if (r.rating !== stars) return false
-      }
-      if (search && !r.content.includes(search) && !r.userName.includes(search) && !r.tags.some(t => t.includes(search))) return false
-      return true
-    })
+  const filteredReviews = reviews.filter(r =>
+    filterPlatform === '全部' || r.platform === filterPlatform
+  ).sort((a, b) => {
+    const priority = { P1: 0, P2: 1, P3: 2, P4: 3 }
+    if (a.status === 'pending' && b.status !== 'pending') return -1
+    if (a.status !== 'pending' && b.status === 'pending') return 1
+    return priority[a.riskLevel] - priority[b.riskLevel]
+  })
 
-    if (sortBy === '评分最高') result.sort((a, b) => b.rating - a.rating)
-    else if (sortBy === '评分最低') result.sort((a, b) => a.rating - b.rating)
-    else result.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  const tagDistribution = [
+    { name: '出餐速度', value: 8, fill: '#ef4444' },
+    { name: '服务态度', value: 6, fill: '#f59e0b' },
+    { name: '产品/菜品', value: 5, fill: '#3b82f6' },
+    { name: '环境卫生', value: 4, fill: '#10b981' },
+    { name: '价格性价比', value: 3, fill: '#8b5cf6' },
+    { name: '停车/交通', value: 2, fill: '#ec4899' },
+  ]
 
-    return result
-  }, [reviews, activeTab, platform, ratingFilter, search, sortBy])
-
-  const handleReply = (id: string, text: string) => {
-    setReviews(prev => prev.map(r => r.id === id ? { ...r, replied: true, replyContent: text } : r))
-    setSelectedIds(prev => { const next = new Set(prev); next.delete(id); return next })
-  }
-
-  const handleBatchReply = (text: string) => {
-    setReviews(prev => prev.map(r => selectedIds.has(r.id) ? { ...r, replied: true, replyContent: text } : r))
-    setSelectedIds(new Set())
-  }
-
-  const toggleSelect = (id: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
-  const selectAllUnreplied = () => {
-    const ids = filtered.filter(r => !r.replied).map(r => r.id)
-    setSelectedIds(new Set(ids))
-  }
-
-  const sentimentData = [
-    { name: '好评', value: reviews.filter(r => r.sentiment === 'positive').length, color: '#10b981' },
-    { name: '中评', value: reviews.filter(r => r.sentiment === 'neutral').length, color: '#f59e0b' },
-    { name: '差评', value: reviews.filter(r => r.sentiment === 'negative').length, color: '#ef4444' },
+  const healthRadar = [
+    { dim: '产品', score: 82 }, { dim: '服务', score: 65 },
+    { dim: '环境', score: 72 }, { dim: '出餐', score: 55 },
+    { dim: '性价比', score: 88 }, { dim: '复购', score: 70 },
   ]
 
   return (
@@ -307,394 +179,289 @@ export default function ReviewPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">评价Agent</h1>
-          <p className="text-gray-500 mt-1">全平台评价聚合管理 · AI智能回复 · 趋势分析</p>
+          <p className="text-gray-500 mt-1">评价驱动的门店经营优化系统</p>
         </div>
-        <button className="px-4 py-2 bg-white border border-gray-200 text-sm text-gray-600 rounded-lg hover:bg-gray-50 flex items-center gap-1.5">
-          <Download className="w-4 h-4" />导出报告
-        </button>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        {[
-          { label: '综合评分', value: avgRating.toString(), sub: '较上月+0.1', color: 'text-primary-600', icon: Star },
-          { label: '总评价数', value: totalReviews.toString(), sub: '近30天', color: 'text-gray-900', icon: MessageSquare },
-          { label: '待回复', value: unrepliedCount.toString(), sub: `回复率${Math.round((1 - unrepliedCount / totalReviews) * 100)}%`, color: unrepliedCount > 10 ? 'text-red-500' : 'text-green-600', icon: Clock },
-          { label: '好评率', value: `${positiveRate}%`, sub: '较上月+2.1%', color: 'text-green-600', icon: ThumbsUp },
-          { label: '差评预警', value: negativeCount.toString(), sub: `${negativeCount > 5 ? '⚠️ 偏高' : '✅ 正常'}`, color: negativeCount > 5 ? 'text-red-500' : 'text-green-600', icon: ThumbsDown },
-        ].map(card => (
-          <div key={card.label} className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-gray-500">{card.label}</span>
-              <card.icon className="w-4 h-4 text-gray-300" />
-            </div>
-            <div className={`text-2xl font-bold ${card.color}`}>{card.value}</div>
-            <span className="text-xs text-gray-400">{card.sub}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Platform ratings row */}
-      <div className="flex gap-3 overflow-x-auto pb-1">
-        {mockPlatformStats.map(p => (
-          <div key={p.platform} className="bg-white rounded-lg px-4 py-2.5 border border-gray-100 shadow-sm flex items-center gap-3 shrink-0">
-            <span className="text-sm font-medium text-gray-700">{p.platform}</span>
-            <div className="flex items-center gap-1">
-              <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
-              <span className="text-sm font-bold text-gray-900">{p.rating}</span>
-            </div>
-            <span className={`text-xs ${p.trend >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-              {p.trend >= 0 ? '↑' : '↓'}{Math.abs(p.trend)}
-            </span>
-            <span className="text-xs text-gray-400">{p.reviews}条</span>
-          </div>
-        ))}
-      </div>
+      {/* Alert */}
+      {p1Count > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
+          <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 animate-pulse" />
+          <p className="text-sm font-medium text-red-700 flex-1">{p1Count}条P1严重差评待处理（含卫生/食安风险）</p>
+          <button onClick={() => setActiveTab(1)} className="px-3 py-1.5 bg-red-600 text-white text-xs rounded-lg">立即处理</button>
+        </div>
+      )}
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-white rounded-xl p-1 border border-gray-100 shadow-sm overflow-x-auto">
+      <div className="flex gap-1 bg-white rounded-xl p-1 border border-gray-100 shadow-sm">
         {tabs.map((tab, i) => (
-          <button key={tab} onClick={() => setActiveTab(i)} className={`px-4 py-2 text-sm font-medium rounded-lg transition whitespace-nowrap ${activeTab === i ? 'bg-primary-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+          <button key={tab} onClick={() => setActiveTab(i)} className={`px-4 py-2 text-sm font-medium rounded-lg transition flex items-center gap-1.5 ${activeTab === i ? 'bg-primary-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
             {tab}
-            {i === 1 && unrepliedCount > 0 && <span className="ml-1.5 px-1.5 py-0.5 text-xs bg-red-100 text-red-600 rounded-full">{unrepliedCount}</span>}
-            {i === 2 && negativeCount > 0 && <span className="ml-1.5 px-1.5 py-0.5 text-xs bg-red-100 text-red-600 rounded-full">{negativeCount}</span>}
+            {i === 1 && pendingCount > 0 && <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${activeTab === i ? 'bg-white/20' : 'bg-red-500 text-white'}`}>{pendingCount}</span>}
           </button>
         ))}
       </div>
 
-      {/* Tab content */}
-      {activeTab <= 2 ? (
-        <>
-          {/* Filters */}
-          <div className="flex flex-wrap gap-3 items-center">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索评价内容、用户、标签..." className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none" />
-            </div>
-            <div className="flex gap-1 bg-white border border-gray-200 rounded-xl p-1 overflow-x-auto">
-              {platformFilters.map(p => (
-                <button key={p} onClick={() => setPlatform(p)} className={`px-3 py-1.5 text-xs font-medium rounded-lg transition whitespace-nowrap ${platform === p ? 'bg-primary-100 text-primary-700' : 'text-gray-500 hover:bg-gray-50'}`}>{p}</button>
-              ))}
-            </div>
-            <select value={ratingFilter} onChange={e => setRatingFilter(e.target.value)} className="px-3 py-2 text-xs border border-gray-200 rounded-lg bg-white text-gray-600">
-              {ratingFilters.map(r => <option key={r}>{r}</option>)}
-            </select>
-            <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="px-3 py-2 text-xs border border-gray-200 rounded-lg bg-white text-gray-600">
-              {sortOptions.map(s => <option key={s}>{s}</option>)}
-            </select>
-          </div>
-
-          {/* Batch actions */}
-          {activeTab <= 1 && (
-            <div className="flex items-center gap-3">
-              <button onClick={selectAllUnreplied} className="text-xs text-primary-600 hover:text-primary-700 font-medium">全选待回复</button>
-              <span className="text-xs text-gray-400">共 {filtered.length} 条评价</span>
-            </div>
-          )}
-
-          <BatchReplyPanel count={selectedIds.size} onBatchReply={handleBatchReply} onClear={() => setSelectedIds(new Set())} />
-
-          {/* Review list */}
-          <div className="space-y-4">
-            {filtered.length === 0 ? (
-              <div className="text-center py-16 text-gray-400">
-                <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                <p>暂无匹配的评价</p>
-              </div>
-            ) : (
-              filtered.map(r => (
-                <ReviewCard
-                  key={r.id}
-                  review={r}
-                  selected={selectedIds.has(r.id)}
-                  onSelect={toggleSelect}
-                  onReply={handleReply}
-                  onUseTemplate={() => {}}
-                />
-              ))
-            )}
-          </div>
-        </>
-      ) : activeTab === 3 ? (
-        /* 趋势分析 - 增强版 */
+      {/* ===== Tab 0: 总览 ===== */}
+      {activeTab === 0 && (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* 评分走势 */}
-            <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-              <h3 className="font-semibold text-gray-900 mb-4">评分走势（近30天）</h3>
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={reviewDailyStats}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                  <YAxis domain={[3.5, 5]} tick={{ fontSize: 11 }} />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="rating" stroke="#2563eb" strokeWidth={2} dot={{ r: 2 }} name="评分" />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* 好差评分布 */}
-            <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-              <h3 className="font-semibold text-gray-900 mb-4">好差评分布</h3>
-              <div className="flex items-center gap-8">
-                <ResponsiveContainer width="50%" height={200}>
-                  <PieChart>
-                    <Pie data={sentimentData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} innerRadius={40} label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                      {sentimentData.map((d, i) => <Cell key={i} fill={d.color} />)}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="space-y-3">
-                  {sentimentData.map(d => (
-                    <div key={d.name} className="flex items-center gap-3">
-                      <span className="w-3 h-3 rounded-full" style={{ background: d.color }} />
-                      <span className="text-sm text-gray-600 w-8">{d.name}</span>
-                      <span className="text-sm font-bold text-gray-900">{d.value}条</span>
-                      <span className="text-xs text-gray-400">({Math.round(d.value / totalReviews * 100)}%)</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 每日评价量+回复率 */}
-          <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-            <h3 className="font-semibold text-gray-900 mb-4">每日评价量与回复率</h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <ComposedChart data={reviewDailyStats}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} domain={[0, 100]} />
-                <Tooltip />
-                <Bar yAxisId="left" dataKey="positive" stackId="reviews" fill="#10b981" name="好评" radius={[0, 0, 0, 0]} />
-                <Bar yAxisId="left" dataKey="neutral" stackId="reviews" fill="#f59e0b" name="中评" radius={[0, 0, 0, 0]} />
-                <Bar yAxisId="left" dataKey="negative" stackId="reviews" fill="#ef4444" name="差评" radius={[2, 2, 0, 0]} />
-                <Line yAxisId="right" type="monotone" dataKey="replyRate" stroke="#2563eb" strokeWidth={2} dot={false} name="回复率%" />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* 关键词分析 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-              <h3 className="font-semibold text-gray-900 mb-4">🟢 高频好评关键词</h3>
-              <div className="space-y-2.5">
-                {keywordAnalysis.positive.map((k, i) => (
-                  <div key={k.keyword} className="flex items-center gap-3">
-                    <span className="text-xs text-gray-400 w-4">{i + 1}</span>
-                    <span className="text-sm text-gray-700 w-20">{k.keyword}</span>
-                    <div className="flex-1 bg-gray-100 rounded-full h-2">
-                      <div className="bg-green-500 rounded-full h-2" style={{ width: `${k.count / keywordAnalysis.positive[0].count * 100}%` }} />
-                    </div>
-                    <span className="text-xs text-gray-500 w-8 text-right">{k.count}</span>
-                    <span className={`text-xs ${TREND_COLORS[k.trend]}`}>
-                      {k.trend === 'up' ? '↑' : k.trend === 'down' ? '↓' : '—'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-              <h3 className="font-semibold text-gray-900 mb-4">🔴 高频差评关键词</h3>
-              <div className="space-y-2.5">
-                {keywordAnalysis.negative.map((k, i) => (
-                  <div key={k.keyword} className="flex items-center gap-3">
-                    <span className="text-xs text-gray-400 w-4">{i + 1}</span>
-                    <span className="text-sm text-gray-700 w-24">{k.keyword}</span>
-                    <div className="flex-1 bg-gray-100 rounded-full h-2">
-                      <div className="bg-red-500 rounded-full h-2" style={{ width: `${k.count / keywordAnalysis.negative[0].count * 100}%` }} />
-                    </div>
-                    <span className="text-xs text-gray-500 w-8 text-right">{k.count}</span>
-                    <span className={`text-xs ${k.trend === 'up' ? 'text-red-500' : k.trend === 'down' ? 'text-green-500' : 'text-gray-400'}`}>
-                      {k.trend === 'up' ? '↑' : k.trend === 'down' ? '↓' : '—'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : activeTab === 4 ? (
-        /* 竞品对比 */
-        <div className="space-y-4">
-          <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-            <h3 className="font-semibold text-gray-900 mb-4">竞品评价对比</h3>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="text-left py-3 text-gray-500 font-medium">店铺</th>
-                  <th className="text-center py-3 text-gray-500 font-medium">评分</th>
-                  <th className="text-center py-3 text-gray-500 font-medium">评价数</th>
-                  <th className="text-center py-3 text-gray-500 font-medium">好评率</th>
-                  <th className="text-center py-3 text-gray-500 font-medium">回复率</th>
-                  <th className="text-center py-3 text-gray-500 font-medium">平均回复时长</th>
-                  <th className="text-left py-3 text-gray-500 font-medium">高频标签</th>
-                </tr>
-              </thead>
-              <tbody>
-                {competitorData.map(c => (
-                  <tr key={c.name} className={`border-b border-gray-50 ${c.isOwn ? 'bg-primary-50/50' : ''}`}>
-                    <td className="py-3">
-                      <div className="flex items-center gap-2">
-                        <span className={`font-medium ${c.isOwn ? 'text-primary-700' : 'text-gray-900'}`}>{c.name}</span>
-                        {c.isOwn && <span className="text-xs px-1.5 py-0.5 bg-primary-100 text-primary-600 rounded">本店</span>}
-                      </div>
-                    </td>
-                    <td className="py-3 text-center">
-                      <span className="flex items-center justify-center gap-1">
-                        <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
-                        <span className="font-bold">{c.rating}</span>
-                      </span>
-                    </td>
-                    <td className="py-3 text-center text-gray-700">{c.reviewCount}</td>
-                    <td className="py-3 text-center">
-                      <span className={c.positiveRate >= 85 ? 'text-green-600 font-medium' : 'text-gray-700'}>{c.positiveRate}%</span>
-                    </td>
-                    <td className="py-3 text-center">
-                      <span className={c.replyRate >= 90 ? 'text-green-600 font-medium' : 'text-gray-700'}>{c.replyRate}%</span>
-                    </td>
-                    <td className="py-3 text-center text-gray-700">{c.avgReplyTime}</td>
-                    <td className="py-3">
-                      <div className="flex gap-1">
-                        {c.topTags.map(t => <span key={t} className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded">#{t}</span>)}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* 竞品评分趋势 */}
-          <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-            <h3 className="font-semibold text-gray-900 mb-4">评分趋势对比（近12周）</h3>
-            <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={competitorData[0].trend.map((_, i) => ({
-                week: `W${i + 1}`,
-                ...Object.fromEntries(competitorData.map(c => [c.name, c.trend[i]]))
-              }))}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="week" tick={{ fontSize: 11 }} />
-                <YAxis domain={[4, 5]} tick={{ fontSize: 11 }} />
-                <Tooltip />
-                {competitorData.map((c, i) => (
-                  <Line key={c.name} type="monotone" dataKey={c.name} stroke={COLORS[i]} strokeWidth={c.isOwn ? 3 : 1.5} strokeDasharray={c.isOwn ? undefined : '5 5'} dot={false} name={c.name} />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* AI分析 */}
-          <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-            <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-purple-500" />AI竞品分析
-            </h3>
-            <div className="space-y-3 text-sm text-gray-600">
-              <p>📊 <strong>评分领先：</strong>本店评分4.6，在4家竞品中排名第1。但"武汉印象藕汤"（4.5分）增速较快，近12周上升0.2分，需要关注。</p>
-              <p>⏱️ <strong>回复效率优势明显：</strong>本店平均回复时长2.3小时，远快于竞品平均5.7小时，回复率92%也是最高。这是重要的竞争优势，需要保持。</p>
-              <p>⚠️ <strong>差评关键词预警：</strong>"等位久""上菜慢"两个关键词趋势上升，与竞品"荆楚藕汤王"的"环境好"形成反差。建议：优化高峰期排队体验。</p>
-              <p>💡 <strong>建议：</strong>1）关注"武汉印象藕汤"的运营策略（偏年轻化打卡风格）；2）加强高峰期服务效率；3）保持回复速度优势。</p>
-            </div>
-          </div>
-        </div>
-      ) : (
-        /* 邀评管理 */
-        <div className="space-y-4">
-          {/* 邀评概览 */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* KPI */}
+          <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
             {[
-              { label: '今日邀评发送', value: `${inviteReviewConfig.sms.sentToday + inviteReviewConfig.wechat.sentToday}条` },
-              { label: '店内扫码', value: `${inviteReviewConfig.inStore.scansToday}次` },
-              { label: '平均转化率', value: `${((inviteReviewConfig.sms.conversionRate + inviteReviewConfig.wechat.conversionRate + inviteReviewConfig.inStore.conversionRate) / 3).toFixed(1)}%` },
-              { label: '本月新增好评', value: '86条' },
+              { label: '综合评分', value: avgRating.toString(), icon: Star, color: 'text-yellow-500', sub: '↑0.1 vs上周' },
+              { label: '本周新评价', value: reviews.length.toString(), icon: MessageSquare, color: 'text-blue-500', sub: '好评4 差评3' },
+              { label: '差评率', value: `${negRate}%`, icon: ThumbsDown, color: 'text-red-500', sub: '↓2.3% vs上周' },
+              { label: '高风险问题', value: p1Count.toString(), icon: AlertTriangle, color: 'text-red-500', sub: '需立即处理' },
+              { label: '待处理', value: pendingCount.toString(), icon: Clock, color: 'text-yellow-500', sub: '平均4.2h响应' },
+              { label: 'AI采纳率', value: `${reviewKPIs.aiAdoptionRate}%`, icon: Sparkles, color: 'text-purple-500', sub: '回复效率↑' },
             ].map(s => (
               <div key={s.label} className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
-                <span className="text-xs text-gray-500">{s.label}</span>
-                <div className="text-2xl font-bold text-gray-900 mt-1">{s.value}</div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-gray-500">{s.label}</span>
+                  <s.icon className={`w-4 h-4 ${s.color}`} />
+                </div>
+                <div className="text-xl font-bold text-gray-900">{s.value}</div>
+                <p className="text-xs text-gray-400 mt-0.5">{s.sub}</p>
               </div>
             ))}
           </div>
 
-          {/* 渠道配置 */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* 短信邀评 */}
+            {/* 负面标签趋势 */}
             <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-900">📱 短信邀评</h3>
-                <div className={`w-11 h-6 rounded-full p-0.5 cursor-pointer transition ${inviteReviewConfig.sms.enabled ? 'bg-primary-600' : 'bg-gray-200'}`}>
-                  <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${inviteReviewConfig.sms.enabled ? 'translate-x-5' : ''}`} />
-                </div>
-              </div>
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between"><span className="text-gray-500">发送时机</span><span className="text-gray-700">消费后{inviteReviewConfig.sms.delayHours}小时</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">今日发送</span><span className="text-gray-700">{inviteReviewConfig.sms.sentToday}条</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">转化率</span><span className="text-green-600 font-medium">{inviteReviewConfig.sms.conversionRate}%</span></div>
-                <div className="p-3 bg-gray-50 rounded-lg text-xs text-gray-500">
-                  <p className="font-medium text-gray-700 mb-1">模板预览</p>
-                  {inviteReviewConfig.sms.template}
-                </div>
-              </div>
+              <h3 className="font-semibold text-gray-900 mb-4">负面标签趋势（近7天）</h3>
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={tagTrends}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="出餐速度" stroke="#ef4444" strokeWidth={2} />
+                  <Line type="monotone" dataKey="服务态度" stroke="#f59e0b" strokeWidth={2} />
+                  <Line type="monotone" dataKey="环境卫生" stroke="#10b981" strokeWidth={2} />
+                  <Line type="monotone" dataKey="产品菜品" stroke="#3b82f6" strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
 
-            {/* 微信邀评 */}
+            {/* 门店风险排行 */}
             <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-900">💬 微信邀评</h3>
-                <div className={`w-11 h-6 rounded-full p-0.5 cursor-pointer transition ${inviteReviewConfig.wechat.enabled ? 'bg-primary-600' : 'bg-gray-200'}`}>
-                  <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${inviteReviewConfig.wechat.enabled ? 'translate-x-5' : ''}`} />
-                </div>
-              </div>
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between"><span className="text-gray-500">发送时机</span><span className="text-gray-700">消费后{inviteReviewConfig.wechat.delayHours}小时</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">今日发送</span><span className="text-gray-700">{inviteReviewConfig.wechat.sentToday}条</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">转化率</span><span className="text-green-600 font-medium">{inviteReviewConfig.wechat.conversionRate}%</span></div>
-                <div className="p-3 bg-gray-50 rounded-lg text-xs text-gray-500">
-                  <p className="font-medium text-gray-700 mb-1">模板预览</p>
-                  {inviteReviewConfig.wechat.template}
-                </div>
-              </div>
-            </div>
-
-            {/* 店内邀评 */}
-            <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-900">🏪 店内扫码邀评</h3>
-                <div className={`w-11 h-6 rounded-full p-0.5 cursor-pointer transition ${inviteReviewConfig.inStore.enabled ? 'bg-primary-600' : 'bg-gray-200'}`}>
-                  <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${inviteReviewConfig.inStore.enabled ? 'translate-x-5' : ''}`} />
-                </div>
-              </div>
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between"><span className="text-gray-500">方式</span><span className="text-gray-700">桌面二维码</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">奖励</span><span className="text-gray-700">{inviteReviewConfig.inStore.reward}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">今日扫码</span><span className="text-gray-700">{inviteReviewConfig.inStore.scansToday}次</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">转化率</span><span className="text-green-600 font-medium">{inviteReviewConfig.inStore.conversionRate}%</span></div>
-              </div>
-            </div>
-
-            {/* 满意度预筛 */}
-            <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-900">🔍 满意度预筛</h3>
-                <div className={`w-11 h-6 rounded-full p-0.5 cursor-pointer transition ${inviteReviewConfig.preFilter.enabled ? 'bg-primary-600' : 'bg-gray-200'}`}>
-                  <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${inviteReviewConfig.preFilter.enabled ? 'translate-x-5' : ''}`} />
-                </div>
-              </div>
-              <div className="space-y-3 text-sm">
-                <div><span className="text-gray-500">预筛问题</span><p className="text-gray-700 mt-1">"{inviteReviewConfig.preFilter.question}"</p></div>
-                <div className="p-3 bg-green-50 rounded-lg">
-                  <p className="text-xs text-green-700"><strong>满意 →</strong> {inviteReviewConfig.preFilter.satisfiedAction}</p>
-                </div>
-                <div className="p-3 bg-red-50 rounded-lg">
-                  <p className="text-xs text-red-700"><strong>不满意 →</strong> {inviteReviewConfig.preFilter.unsatisfiedAction}</p>
-                </div>
+              <h3 className="font-semibold text-gray-900 mb-4">门店口碑对比</h3>
+              <div className="space-y-3">
+                {storeComparison.sort((a, b) => a.negRate - b.negRate).map((s, i) => (
+                  <div key={s.store} className="flex items-center gap-3">
+                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${i === 0 ? 'bg-green-100 text-green-600' : i >= storeComparison.length - 1 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'}`}>{i + 1}</span>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-900">{s.store}</span>
+                        <span className="text-sm font-bold flex items-center gap-1"><Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />{s.score}</span>
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                        <span>差评率 {s.negRate}%</span>
+                        <span>响应 {s.avgReplyTime}h</span>
+                        <span className="text-red-500">⚠ {s.topIssue}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* ===== Tab 1: 评价处理台 ===== */}
+      {activeTab === 1 && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex gap-2">
+              {['全部', '美团', '大众点评', '抖音', '小红书'].map(p => (
+                <button key={p} onClick={() => setFilterPlatform(p)} className={`px-3 py-1.5 text-xs rounded-lg transition ${filterPlatform === p ? 'bg-primary-600 text-white' : 'bg-white text-gray-600 border border-gray-200'}`}>{p}</button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {filteredReviews.map(review => {
+              const risk = riskConfig[review.riskLevel]
+              const st = statusConfig[review.status]
+              return (
+                <div key={review.id} onClick={() => setSelectedReview(review)}
+                  className={`bg-white rounded-xl p-5 border shadow-sm cursor-pointer hover:shadow-md transition ${review.status === 'pending' && review.riskLevel === 'P1' ? 'border-red-200 bg-red-50/30' : 'border-gray-100'}`}>
+                  <div className="flex items-start gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${risk.color}`}>{risk.label}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${st.color}`}>{st.label}</span>
+                        <span className="text-xs text-gray-400">{review.platformIcon} {review.platform}</span>
+                        <span className="text-xs text-gray-400">· {review.store}</span>
+                        <span className="text-xs text-gray-400">· {review.timeAgo}</span>
+                        <div className="flex gap-0.5 ml-auto">
+                          {[1,2,3,4,5].map(i => <Star key={i} className={`w-3.5 h-3.5 ${i <= review.rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200'}`} />)}
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-700 line-clamp-2">{review.content}</p>
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        {review.tags.slice(0, 3).map((tag, i) => (
+                          <span key={i} className={`text-xs px-2 py-0.5 rounded-full ${tag.sentiment === 'negative' ? 'bg-red-50 text-red-600' : tag.sentiment === 'positive' ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
+                            {tag.primary}/{tag.secondary}
+                          </span>
+                        ))}
+                        {review.hasImage && <span className="text-xs text-gray-400 flex items-center gap-0.5"><ImageIcon className="w-3 h-3" />图</span>}
+                        {review.hasVideo && <span className="text-xs text-gray-400 flex items-center gap-0.5"><Video className="w-3 h-3" />视频</span>}
+                      </div>
+                      <p className="text-xs text-purple-600 mt-2 line-clamp-1">🤖 {review.aiSummary}</p>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-gray-300 shrink-0 mt-2" />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ===== Tab 2: 问题整改 ===== */}
+      {activeTab === 2 && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: '待处理', value: remediationTasks.filter(t => t.status === 'open').length, color: 'text-red-500' },
+              { label: '整改中', value: remediationTasks.filter(t => t.status === 'in_progress').length, color: 'text-blue-500' },
+              { label: '已完成', value: remediationTasks.filter(t => t.status === 'resolved' || t.status === 'verified').length, color: 'text-green-500' },
+            ].map(s => (
+              <div key={s.label} className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm text-center">
+                <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
+                <p className="text-sm text-gray-500">{s.label}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="space-y-3">
+            {remediationTasks.map(task => {
+              const tRisk = riskConfig[task.riskLevel]
+              const tStatus = taskStatusConfig[task.status]
+              return (
+                <div key={task.id} className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-semibold text-gray-900">{task.title}</h3>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${tRisk.color}`}>{tRisk.label}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${tStatus.color}`}>{tStatus.label}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-gray-500">
+                        <span>📊 来源{task.sourceReviewCount}条评价</span>
+                        <span>📍 {task.stores.join('、')}</span>
+                        <span>👤 {task.assignee}</span>
+                        <span>📅 截止 {task.deadline}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-3 bg-blue-50 rounded-lg">
+                    <p className="text-xs font-medium text-blue-700 mb-1">💡 建议动作</p>
+                    <p className="text-xs text-gray-700">{task.suggestedAction}</p>
+                  </div>
+                  {task.period && <p className="text-xs text-gray-500 mt-2">⏰ 涉及时段：{task.period}</p>}
+                  {task.staff && <p className="text-xs text-gray-500 mt-1">👥 涉及人员：{task.staff}</p>}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ===== Tab 3: 经营洞察 ===== */}
+      {activeTab === 3 && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* 口碑雷达 */}
+            <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
+              <h3 className="font-semibold text-gray-900 mb-4">门店口碑雷达</h3>
+              <ResponsiveContainer width="100%" height={220}>
+                <RadarChart data={healthRadar}>
+                  <PolarGrid strokeDasharray="3 3" />
+                  <PolarAngleAxis dataKey="dim" tick={{ fontSize: 11 }} />
+                  <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} />
+                  <Radar dataKey="score" stroke="#2563eb" fill="#2563eb" fillOpacity={0.15} strokeWidth={2} />
+                </RadarChart>
+              </ResponsiveContainer>
+              <div className="text-center mt-2">
+                <p className="text-xs text-gray-500">最强：性价比(88) · 最弱：出餐(55)</p>
+                <p className="text-xs text-red-500 mt-1">⚠️ 出餐速度连续3天下滑，建议优先整改</p>
+              </div>
+            </div>
+
+            {/* 问题类型分布 */}
+            <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
+              <h3 className="font-semibold text-gray-900 mb-4">负面问题分布</h3>
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie data={tagDistribution} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} innerRadius={35}
+                    label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                    {tagDistribution.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* 好评资产化 */}
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-5 border border-green-200">
+            <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-green-600" />好评资产化
+            </h3>
+            <div className="mb-4">
+              <p className="text-xs text-gray-500 mb-2">顾客最常夸的关键词</p>
+              <div className="flex flex-wrap gap-2">
+                {goodReviewAssets.topKeywords.map(kw => (
+                  <span key={kw} className="text-xs px-3 py-1.5 bg-white text-green-700 rounded-full border border-green-200 shadow-sm">{kw}</span>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs text-gray-500">AI生成的营销文案建议</p>
+              {goodReviewAssets.suggestedCopy.map(copy => (
+                <div key={copy.use} className="flex items-center gap-3 p-3 bg-white rounded-lg">
+                  <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded shrink-0">{copy.use}</span>
+                  <p className="text-xs text-gray-700 flex-1">{copy.text}</p>
+                  <button className="shrink-0 text-xs text-primary-600 hover:text-primary-700">
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* AI经营建议 */}
+          <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-5 border border-purple-200">
+            <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-purple-500" />AI经营建议
+            </h3>
+            <div className="space-y-3">
+              {[
+                { icon: '👨‍🍳', text: '建议对晚高峰增配1名前厅服务员，当前18:00-20:00服务评分最低', urgency: '紧急' },
+                { icon: '🧹', text: '建议提高翻台清洁频次，近7天"环境卫生"负面标签上升42%', urgency: '重要' },
+                { icon: '📈', text: '菌菇藕汤好评率98%，建议加大推广投入（当前仅占营销预算的12%）', urgency: '建议' },
+                { icon: '🔄', text: '光谷店出品与旗舰店存在差异，建议总厨每周巡店1次', urgency: '建议' },
+                { icon: '💡', text: '"服务冷淡"标签连续上升，建议本周开展服务话术专项培训', urgency: '重要' },
+              ].map((item, i) => (
+                <div key={i} className="flex items-start gap-3 p-3 bg-white rounded-lg">
+                  <span className="text-xl">{item.icon}</span>
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-700">{item.text}</p>
+                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${item.urgency === '紧急' ? 'bg-red-100 text-red-600' : item.urgency === '重要' ? 'bg-yellow-100 text-yellow-600' : 'bg-blue-100 text-blue-600'}`}>{item.urgency}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Detail panel */}
+      {selectedReview && <ReviewDetailPanel review={selectedReview} onClose={() => setSelectedReview(null)} />}
     </div>
   )
 }
