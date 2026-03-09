@@ -153,6 +153,51 @@ export default function AutoOpsPage() {
         </div>
       </div>
 
+      {/* 自动报表 */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
+        <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="font-semibold text-gray-900 flex items-center gap-2"><FileText className="w-5 h-5 text-indigo-500" />自动报表推送</h3>
+          <button className="text-xs px-3 py-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-1"><Plus className="w-3 h-3" />新建报表</button>
+        </div>
+        <div className="divide-y divide-gray-50">
+          {[
+            { name: '日报', schedule: '每天 09:00', target: '老板微信 + 运营群', content: '昨日营收/订单/评分/差评/待办', lastSent: '今天 09:00', status: 'active', preview: '📊 纺大店3/8日报\n营收¥6,230(↑8%) | 订单132(↑5%) | 评分4.6(持平)\n新增差评2条(已自动预警) | 待办3项\n🔥 爆品：一人食套餐45单 | ⚠️ 抖音套餐库存剩86' },
+            { name: '周报', schedule: '每周一 10:00', target: '老板微信 + 管理层群', content: '周度经营分析/同比/环比/AI建议', lastSent: '3/3 10:00', status: 'active', preview: '📊 纺大店第10周周报(2/24-3/2)\n周营收¥42,800(环比↑6.2%) | 周订单896单\n好评率82%(↑3%) | 差评TOP1:出餐慢(8条)\n🏆 本周最佳套餐：抖音限定(312单)\n💡 AI建议：增加晚高峰备餐量，预计可减少30%出餐超时' },
+            { name: '月报', schedule: '每月1日 10:00', target: '老板微信', content: '月度经营总结/利润/趋势/下月建议', lastSent: '3/1 10:00', status: 'active', preview: '📊 纺大店2月月报\n月营收¥185,000(同比↑15%) | 月订单3,860单\n综合评分4.6(↑0.1) | 新增评价287条\n利润率预估22%(↑1.5%)\n📈 增长最快：菌菇藕汤(+45%)\n💡 3月建议：加大抖音投放，上线春季新品' },
+            { name: '连锁周报', schedule: '每周一 10:00', target: '品牌管理群', content: '各门店PK/品牌共性问题/标杆经验', lastSent: '3/3 10:00', status: 'active', preview: '📊 湖北藕汤品牌第10周报\n品牌总营收¥168,000 | 4家门店营业\n🏆 评分第一：汉口店4.5 | ⚠️ 差评最多：光谷店(11.2%)\n品牌共性问题：出餐速度(3家涉及)\n✅ 标杆经验：汉口店服务SOP可推广' },
+          ].map(report => (
+            <div key={report.name} className="px-5 py-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-900">{report.name}</span>
+                  <span className="text-xs px-2 py-0.5 bg-green-50 text-green-600 rounded-full">已启用</span>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-gray-400">
+                  <span>🕐 {report.schedule}</span>
+                  <span>上次: {report.lastSent}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
+                <span>📤 推送到: {report.target}</span>
+              </div>
+              <details className="group">
+                <summary className="text-xs text-primary-600 cursor-pointer hover:text-primary-700">预览报表内容 ▸</summary>
+                <div className="mt-2 p-4 bg-gray-50 rounded-xl">
+                  <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-100 max-w-sm">
+                    <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-100">
+                      <div className="w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center"><Bot className="w-4 h-4 text-primary-600" /></div>
+                      <div><p className="text-xs font-medium text-gray-900">智店AI助手</p><p className="text-[10px] text-gray-400">{report.lastSent}</p></div>
+                    </div>
+                    <div className="text-xs text-gray-700 leading-relaxed whitespace-pre-line">{report.preview}</div>
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-2 text-center">↑ 微信消息预览</p>
+                </div>
+              </details>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* 私域运营 */}
       <div>
         <div className="flex items-center justify-between mb-4">
