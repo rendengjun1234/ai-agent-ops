@@ -5,7 +5,7 @@ import { useState } from 'react'
 import {
   Bot, LayoutDashboard, MessageSquare, BarChart3, Megaphone, Globe,
   Target, Zap, ClipboardList, Headphones, Shield, Radar, Settings,
-  Store, ChevronDown, LogOut, Menu, X, Check, Building2, Plus, MapPin
+  Store, ChevronDown, LogOut, Menu, X, Check, Building2, Plus, MapPin, Smartphone
 } from 'lucide-react'
 import { StoreProvider, useStore, allStores, chainOverview } from '@/lib/store-context'
 import type { StoreInfo } from '@/lib/store-context'
@@ -18,6 +18,7 @@ const navItems = [
   { href: '/dashboard/site', label: '建站Agent', icon: Globe },
   { href: '/dashboard/sales', label: '销售Agent', icon: Target },
   { href: '/dashboard/marketing', label: '营销Agent', icon: Zap },
+  { href: '/dashboard/official-ops', label: '官号运营', icon: Smartphone },
   { href: '/dashboard/ops', label: '运营Agent', icon: ClipboardList },
   { href: '/dashboard/service', label: '客服Agent', icon: Headphones },
   { href: '/dashboard/appeal', label: '申诉Agent', icon: Shield },
