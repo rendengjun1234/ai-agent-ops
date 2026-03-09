@@ -20,6 +20,7 @@ const navItems = [
   { href: '/dashboard/service', label: '客服Agent', icon: Headphones },
   { href: '/dashboard/appeal', label: '申诉Agent', icon: Shield },
   { href: '/dashboard/patrol', label: '巡检Agent', icon: Radar },
+  { href: '/dashboard/stores', label: '门店管理', icon: Store },
   { href: '/dashboard/settings', label: '系统设置', icon: Settings },
 ]
 
