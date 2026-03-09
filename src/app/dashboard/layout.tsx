@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import {
-  Bot, LayoutDashboard, MessageSquare, BarChart3, Megaphone, Globe,
+  Bot, LayoutDashboard, MessageSquare, BarChart3, Megaphone, Package,
   Target, Zap, ClipboardList, Headphones, Shield, Radar, Settings,
   Store, ChevronDown, LogOut, Menu, X, Check, Building2, Plus, MapPin, Smartphone
 } from 'lucide-react'
@@ -15,8 +15,7 @@ const navItems = [
   { href: '/dashboard/review', label: '评价Agent', icon: MessageSquare, badge: 3 },
   { href: '/dashboard/analytics', label: '数据Agent', icon: BarChart3 },
   { href: '/dashboard/traffic', label: '获客Agent', icon: Megaphone },
-  { href: '/dashboard/site', label: '建站Agent', icon: Globe },
-  { href: '/dashboard/sales', label: '销售Agent', icon: Target },
+  { href: '/dashboard/products', label: '商品套餐', icon: Package },
   { href: '/dashboard/marketing', label: '营销Agent', icon: Zap },
   { href: '/dashboard/official-ops', label: '官号运营', icon: Smartphone },
   { href: '/dashboard/service', label: '客服Agent', icon: Headphones },
