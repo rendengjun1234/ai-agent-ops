@@ -4,6 +4,8 @@ import { Smartphone, Plus, TrendingUp, Eye, Heart, MessageSquare, Share2, Calend
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
 import { socialAccounts, contentPosts, contentStrategies, marketingCalendar, officialOpsStats } from '@/lib/official-ops-data'
 import { useStore } from '@/lib/store-context'
+import BindXhsAccountModal from '@/components/BindXhsAccountModal'
+import PublishNoteModal from '@/components/PublishNoteModal'
 
 const tabs = ['账号矩阵', '内容管理', '营销日历', '数据分析']
 const statusLabels = { draft: '草稿', scheduled: '定时', published: '已发布', generating: '生成中' }
@@ -136,6 +138,9 @@ function ContentCard({ post }: { post: typeof contentPosts[0] }) {
 export default function OfficialOpsPage() {
   const [activeTab, setActiveTab] = useState(0)
   const { currentStore } = useStore()
+  const [showBindModal, setShowBindModal] = useState(false)
+  const [showPublishModal, setShowPublishModal] = useState(false)
+  const [boundAccount, setBoundAccount] = useState<{ cookies: any[]; userInfo: any } | null>(null)
 
   const weeklyData = [
     { day: '周一', views: 12000, likes: 890, posts: 3 },
@@ -154,9 +159,22 @@ export default function OfficialOpsPage() {
           <h1 className="text-2xl font-bold text-gray-900">官号运营</h1>
           <p className="text-gray-500 mt-1">矩阵账号 · AI内容生成 · 营销日历</p>
         </div>
-        <button className="px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 flex items-center gap-1.5">
-          <Plus className="w-4 h-4" />添加账号
-        </button>
+        <div className="flex gap-2">
+          {boundAccount && (
+            <button 
+              onClick={() => setShowPublishModal(true)}
+              className="px-4 py-2 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 flex items-center gap-1.5"
+            >
+              <Sparkles className="w-4 h-4" />发布笔记
+            </button>
+          )}
+          <button 
+            onClick={() => setShowBindModal(true)}
+            className="px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 flex items-center gap-1.5"
+          >
+            <Plus className="w-4 h-4" />{boundAccount ? '更换账号' : '绑定账号'}
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -319,6 +337,18 @@ export default function OfficialOpsPage() {
           </div>
         </div>
       )}
+
+      {/* Modals */}
+      <BindXhsAccountModal
+        open={showBindModal}
+        onClose={() => setShowBindModal(false)}
+        onSuccess={(account) => setBoundAccount(account)}
+      />
+      <PublishNoteModal
+        open={showPublishModal}
+        onClose={() => setShowPublishModal(false)}
+        account={boundAccount}
+      />
     </div>
   )
 }
