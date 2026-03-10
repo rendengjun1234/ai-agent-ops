@@ -2,14 +2,27 @@
 <html>
 <head><meta charset="utf-8">
 <style>
-body{width:300px;padding:16px;font-family:system-ui}
-#msg{padding:10px;border-radius:6px;font-size:13px;margin-bottom:10px;background:#f0f0f0}
-button{width:100%;padding:10px;background:#ef4444;color:white;border:none;border-radius:6px;font-size:14px;font-weight:bold;cursor:pointer}
+body{width:340px;padding:16px;font-family:system-ui;font-size:13px}
+h2{font-size:15px;margin-bottom:12px}
+.plat{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.plat button{flex:1;padding:8px 4px;border:2px solid #e5e7eb;border-radius:8px;background:white;cursor:pointer;font-size:12px;min-width:70px}
+.plat button.active{border-color:#ef4444;background:#fef2f2}
+.plat button:hover{border-color:#fca5a5}
+#msg{padding:10px;border-radius:6px;font-size:12px;margin-bottom:10px;background:#f0f0f0;word-break:break-all}
+button.primary{width:100%;padding:10px;background:#ef4444;color:white;border:none;border-radius:6px;font-size:14px;font-weight:bold;cursor:pointer}
+button.primary:disabled{opacity:0.5}
 </style>
 </head>
 <body>
-<div id="msg">点击按钮绑定小红书账号</div>
-<button id="btn">🔗 一键绑定</button>
+<h2>🔗 智店AI 账号绑定</h2>
+<div class="plat" id="platforms">
+  <button data-plat="xiaohongshu" class="active">📕 小红书</button>
+  <button data-plat="douyin">🎵 抖音</button>
+  <button data-plat="kwai">🎬 快手</button>
+  <button data-plat="wxsph">📺 视频号</button>
+</div>
+<div id="msg">选择平台后点击绑定</div>
+<button id="btn" class="primary">🔗 一键绑定</button>
 <script src="popup.js"></script>
 </body>
 </html>

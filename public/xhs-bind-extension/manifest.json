@@ -1,11 +1,14 @@
 {
   "manifest_version": 3,
-  "name": "XHS Bind",
-  "version": "1.0.5",
-  "description": "绑定小红书账号",
+  "name": "智店AI - 账号绑定",
+  "version": "2.0.0",
+  "description": "一键绑定社交媒体账号到智店AI",
   "permissions": ["cookies", "scripting"],
   "host_permissions": [
     "*://*.xiaohongshu.com/*",
+    "*://*.douyin.com/*",
+    "*://*.kuaishou.com/*",
+    "*://*.weixin.qq.com/*",
     "https://ai-agent-ops.vercel.app/*"
   ],
   "action": {
