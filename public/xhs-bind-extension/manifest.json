@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "智店AI - 小红书账号绑定",
+  "version": "1.0.0",
+  "description": "一键绑定小红书账号到智店AI",
+  "permissions": ["cookies"],
+  "host_permissions": [
+    "https://*.xiaohongshu.com/*",
+    "https://ai-agent-ops.vercel.app/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png"
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://ai-agent-ops.vercel.app/*"],
+      "js": ["content.js"]
+    }
+  ]
+}

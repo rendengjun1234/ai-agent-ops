@@ -42,7 +42,7 @@ export default function BindXhsAccountModal({ open, onClose, onSuccess }: BindXh
   const [step, setStep] = useState<'guide' | 'waiting' | 'manual'>('guide')
   const [cookieStr, setCookieStr] = useState('')
 
-  // 监听 localStorage 变化（bookmarklet 绑定成功后会写入）
+  // 监听 localStorage 变化（bookmarklet）和 postMessage（扩展）
   const checkBindResult = useCallback(() => {
     const result = localStorage.getItem('xhs_bind_result')
     if (result) {
@@ -57,15 +57,25 @@ export default function BindXhsAccountModal({ open, onClose, onSuccess }: BindXh
 
   useEffect(() => {
     if (!open) return
-    // 轮询检查 localStorage
     const interval = setInterval(checkBindResult, 1000)
-    // 也监听 storage 事件
     window.addEventListener('storage', checkBindResult)
+
+    // 监听 Chrome 扩展的 postMessage
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'XHS_BIND_SUCCESS' && event.data?.data) {
+        const { cookies, userInfo } = event.data.data
+        onSuccess({ cookies, userInfo })
+        onClose()
+      }
+    }
+    window.addEventListener('message', handleMessage)
+
     return () => {
       clearInterval(interval)
       window.removeEventListener('storage', checkBindResult)
+      window.removeEventListener('message', handleMessage)
     }
-  }, [open, checkBindResult])
+  }, [open, checkBindResult, onSuccess, onClose])
 
   if (!open) return null
 
@@ -113,50 +123,42 @@ export default function BindXhsAccountModal({ open, onClose, onSuccess }: BindXh
         <div className="p-5 space-y-4">
           {step === 'guide' && (
             <>
-              {/* 一键绑定方案 */}
+              {/* Chrome 扩展方案 */}
               <div className="p-4 bg-gradient-to-r from-red-50 to-pink-50 rounded-xl border border-red-100">
                 <h3 className="font-semibold text-gray-900 flex items-center gap-2 mb-3">
                   <Sparkles className="w-5 h-5 text-red-500" />
-                  一键绑定（推荐）
+                  一键绑定（Chrome 扩展）
                 </h3>
                 <div className="space-y-3 text-sm">
                   <div className="flex items-start gap-3">
                     <span className="w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">1</span>
                     <div>
-                      <p className="font-medium text-gray-800">拖拽下方按钮到书签栏</p>
-                      <div className="mt-2">
-                        <a
-                          href={bookmarkletCode}
-                          onClick={e => e.preventDefault()}
-                          onDragStart={() => {}}
-                          className="inline-flex items-center gap-1.5 px-4 py-2 bg-red-500 text-white text-sm font-medium rounded-lg cursor-grab active:cursor-grabbing shadow-md hover:shadow-lg transition"
-                        >
-                          <BookOpen className="w-4 h-4" />
-                          📕 绑定小红书
-                        </a>
-                      </div>
-                      <p className="text-xs text-gray-400 mt-1">* 拖到浏览器书签栏即可</p>
+                      <p className="font-medium text-gray-800">安装绑定助手扩展</p>
+                      <p className="text-xs text-gray-500 mt-1">下载扩展 → Chrome 设置 → 扩展程序 → 开启开发者模式 → 加载已解压的扩展</p>
+                      <a
+                        href="/xhs-bind-extension/xhs-bind-extension.zip"
+                        download
+                        className="inline-flex items-center gap-1 mt-2 px-3 py-1.5 bg-red-500 text-white text-xs font-medium rounded-lg hover:bg-red-600"
+                      >
+                        ⬇️ 下载扩展
+                      </a>
                     </div>
                   </div>
 
                   <div className="flex items-start gap-3">
                     <span className="w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">2</span>
                     <div>
-                      <p className="font-medium text-gray-800">打开小红书并登录</p>
-                      <a
-                        href="https://www.xiaohongshu.com"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-red-500 hover:underline mt-1"
-                      >
-                        打开小红书 <ExternalLink className="w-3.5 h-3.5" />
+                      <p className="font-medium text-gray-800">登录小红书</p>
+                      <a href="https://www.xiaohongshu.com" target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-red-500 hover:underline mt-1 text-xs">
+                        打开小红书 <ExternalLink className="w-3 h-3" />
                       </a>
                     </div>
                   </div>
 
                   <div className="flex items-start gap-3">
                     <span className="w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">3</span>
-                    <p className="font-medium text-gray-800">登录成功后，点击书签栏的「📕 绑定小红书」</p>
+                    <p className="font-medium text-gray-800">点击扩展图标 → 「一键绑定」</p>
                   </div>
                 </div>
               </div>
