@@ -1,12 +1,5 @@
-/**
- * 同步管理接口
- * POST: 手动触发同步（可指定accountId或全部）
- * GET: 获取同步任务状态/历史
- */
-
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db'
-import { syncReviewsForAccount, syncAllAccounts } from '@/lib/sync-service'
+import { syncAllAccounts, syncReviewsForAccount } from '@/lib/sync-service'
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,21 +12,19 @@ export async function POST(req: NextRequest) {
       await syncAllAccounts()
     }
 
-    return NextResponse.json({ success: true, message: accountId ? `已同步账号 ${accountId}` : '已同步所有账号' })
+    return NextResponse.json({ success: true })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || '同步失败' }, { status: 500 })
+    return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    const limit = parseInt(req.nextUrl.searchParams.get('limit') || '20')
-    const tasks = await prisma.syncTask.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-    })
-    return NextResponse.json({ success: true, data: tasks })
+    const { getDb } = await import('@/lib/db')
+    const db = getDb()
+    const tasks = db.prepare('SELECT * FROM sync_tasks ORDER BY created_at DESC LIMIT 20').all()
+    return NextResponse.json({ tasks })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || '获取同步状态失败' }, { status: 500 })
+    return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }

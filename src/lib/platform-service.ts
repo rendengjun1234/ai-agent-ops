@@ -154,3 +154,19 @@ export function parseCookieString(cookieStr: string): PlatformCookie[] {
     return { name: name.trim(), value: rest.join('=').trim() }
   }).filter(c => c.name && c.value)
 }
+
+// ====== 获取平台服务实例 ======
+
+import { MeituanService } from './meituan-service'
+import { ElemeService } from './eleme-service'
+import { DouyinService } from './douyin-service'
+
+const services: Record<string, PlatformService> = {
+  meituan: new MeituanService(),
+  eleme: new ElemeService(),
+  douyin: new DouyinService(),
+}
+
+export function getServiceByPlatform(platform: PlatformType | string): PlatformService | null {
+  return services[platform] || null
+}

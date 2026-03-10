@@ -1,82 +1,56 @@
-/**
- * 评价聚合接口
- * GET: 获取所有平台评价（支持platform筛选）
- * POST: 回复评价
- */
-
 import { NextRequest, NextResponse } from 'next/server'
-import { PlatformType } from '@/lib/platform-service'
-import { platformStore, dbAccountToPlatformAccount } from '@/lib/store/platform-store'
-import { meituanService } from '@/lib/meituan-service'
-import { elemeService } from '@/lib/eleme-service'
-import { douyinService } from '@/lib/douyin-service'
+import { platformStore } from '@/lib/store/platform-store'
+import { getServiceByPlatform, type PlatformType } from '@/lib/platform-service'
+import { PLATFORM_DISPLAY, PLATFORM_ICON } from '@/lib/db'
 
-const services = {
-  meituan: meituanService,
-  eleme: elemeService,
-  douyin: douyinService,
-}
-
+// GET - 获取评价（通过平台API）
 export async function GET(req: NextRequest) {
   try {
-    const platform = req.nextUrl.searchParams.get('platform') as PlatformType | null
-    const shopId = req.nextUrl.searchParams.get('shopId')
-    const page = parseInt(req.nextUrl.searchParams.get('page') || '1')
+    const { searchParams } = new URL(req.url)
+    const platform = searchParams.get('platform') as PlatformType | null
 
-    const dbAccounts = platform
-      ? await platformStore.getAccountsByPlatform(platform)
-      : await platformStore.getAllAccounts()
+    if (!platform) return NextResponse.json({ error: '缺少platform参数' }, { status: 400 })
 
-    const accounts = dbAccounts.map(dbAccountToPlatformAccount)
-    const allReviews = []
+    const service = getServiceByPlatform(platform)
+    if (!service) return NextResponse.json({ error: `不支持的平台: ${platform}` }, { status: 400 })
 
-    for (const account of accounts) {
-      const service = services[account.platform as keyof typeof services]
-      if (!service) continue
+    const accounts = platformStore.getAccountsByPlatform(platform)
+    if (accounts.length === 0) return NextResponse.json({ error: '未找到该平台的绑定账号' }, { status: 404 })
 
-      const targetShops = shopId
-        ? account.shops.filter(s => s.shopId === shopId)
-        : account.shops
+    const shops = platformStore.getShopsByPlatform(platform)
+    const allReviews: any[] = []
 
-      for (const shop of targetShops) {
-        try {
-          const result = await service.getReviews(account.cookies, shop.shopId, page)
-          allReviews.push(...result.reviews)
-        } catch (err) {
-          console.error(`获取 ${account.platform} 评价失败:`, err)
-        }
-      }
+    for (const shop of shops) {
+      const result = await service.getReviews(accounts[0].cookies, shop.shopId)
+      allReviews.push(...result.reviews.map((r: any) => ({
+        ...r,
+        platformName: PLATFORM_DISPLAY[platform] || platform,
+        platformIcon: PLATFORM_ICON[platform] || '⚪',
+        shopName: shop.shopName,
+      })))
     }
 
-    allReviews.sort((a, b) => b.reviewTime - a.reviewTime)
-
-    return NextResponse.json({ success: true, data: { reviews: allReviews, total: allReviews.length } })
+    return NextResponse.json({ reviews: allReviews })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || '获取评价失败' }, { status: 500 })
+    return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
 
+// POST - 回复评价
 export async function POST(req: NextRequest) {
   try {
     const { platform, reviewId, content } = await req.json()
-    if (!platform || !reviewId || !content) {
-      return NextResponse.json({ error: '缺少必要参数' }, { status: 400 })
-    }
+    if (!platform || !reviewId || !content) return NextResponse.json({ error: '缺少参数' }, { status: 400 })
 
-    const service = services[platform as keyof typeof services]
-    if (!service) {
-      return NextResponse.json({ error: `暂不支持平台: ${platform}` }, { status: 400 })
-    }
+    const service = getServiceByPlatform(platform as PlatformType)
+    if (!service) return NextResponse.json({ error: `不支持的平台` }, { status: 400 })
 
-    const dbAccounts = await platformStore.getAccountsByPlatform(platform)
-    if (dbAccounts.length === 0) {
-      return NextResponse.json({ error: '未找到该平台的绑定账号' }, { status: 404 })
-    }
+    const accounts = platformStore.getAccountsByPlatform(platform)
+    if (accounts.length === 0) return NextResponse.json({ error: '未找到绑定账号' }, { status: 404 })
 
-    const account = dbAccountToPlatformAccount(dbAccounts[0])
-    const result = await service.replyReview(account.cookies, { reviewId, content })
+    const result = await service.replyReview(accounts[0].cookies, { reviewId, content })
     return NextResponse.json({ success: result.success, ...('error' in result ? { error: result.error } : {}) })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || '回复失败' }, { status: 500 })
+    return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }

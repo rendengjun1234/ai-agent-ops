@@ -1,8 +1,9 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Star, AlertTriangle, CheckCircle, Clock, TrendingUp, TrendingDown, ChevronRight, MessageSquare, Eye, Shield, Sparkles, Target, Users, BarChart3, Send, Copy, ThumbsUp, ThumbsDown, Flame, Filter, Search, Image as ImageIcon, Video, ExternalLink, ArrowRight, Zap, FileText, Settings, X } from 'lucide-react'
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, PieChart, Pie, Cell } from 'recharts'
-import { reviews, remediationTasks, tagTrends, storeComparison, goodReviewAssets, reviewKPIs, type Review } from '@/lib/review-system-data'
+import { reviews as mockReviews, remediationTasks as mockTasks, tagTrends, storeComparison, goodReviewAssets, reviewKPIs, type Review } from '@/lib/review-system-data'
+import type { RemediationTask } from '@/lib/review-system-data'
 import { useStore } from '@/lib/store-context'
 import { useToast } from '@/components/ui/toast'
 
@@ -169,36 +170,86 @@ export default function ReviewPage() {
   const [activeTab, setActiveTab] = useState(0)
   const [selectedReview, setSelectedReview] = useState<Review | null>(null)
   const [filterPlatform, setFilterPlatform] = useState('全部')
-  const [reviewStatuses, setReviewStatuses] = useState<Record<string, string>>({})
-  const [taskStatuses, setTaskStatuses] = useState<Record<string, string>>({})
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const { currentStore } = useStore()
   const { toast } = useToast()
 
-  const getReviewStatus = (r: Review) => (reviewStatuses[r.id] as Review['status']) || r.status
-  const pendingCount = reviews.filter(r => getReviewStatus(r) === 'pending').length
-  const p1Count = reviews.filter(r => r.riskLevel === 'P1' && getReviewStatus(r) === 'pending').length
+  // Real data from API
+  const [reviews, setReviews] = useState<Review[]>(mockReviews)
+  const [remediationTasks, setRemediationTasks] = useState<RemediationTask[]>(mockTasks)
+  const [loading, setLoading] = useState(true)
 
-  const handleReviewAction = (action: string, review: Review) => {
+  const fetchReviews = useCallback(async () => {
+    try {
+      const params = new URLSearchParams()
+      if (filterPlatform !== '全部') params.set('platform', filterPlatform)
+      const res = await fetch(`/api/reviews?${params}`)
+      const data = await res.json()
+      if (data.reviews?.length > 0) setReviews(data.reviews)
+    } catch { /* fallback to mock */ }
+  }, [filterPlatform])
+
+  const fetchTasks = useCallback(async () => {
+    try {
+      const res = await fetch('/api/reviews/tasks')
+      const data = await res.json()
+      if (data.tasks?.length > 0) setRemediationTasks(data.tasks)
+    } catch { /* fallback to mock */ }
+  }, [])
+
+  useEffect(() => {
+    Promise.all([fetchReviews(), fetchTasks()]).finally(() => setLoading(false))
+  }, [fetchReviews, fetchTasks])
+
+  const pendingCount = reviews.filter(r => r.status === 'pending').length
+  const p1Count = reviews.filter(r => r.riskLevel === 'P1' && r.status === 'pending').length
+
+  const handleReviewAction = async (action: string, review: Review) => {
     if (action === 'reply') {
-      setReviewStatuses(prev => ({ ...prev, [review.id]: 'replied' }))
-      toast('success', `已回复「${review.author}」的${review.platform}评价`)
+      try {
+        await fetch('/api/reviews', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reviewId: review.id, status: 'replied', reply: review.aiReply })
+        })
+        await fetchReviews()
+        toast('success', `已回复「${review.author}」的${review.platform}评价`)
+      } catch { toast('error', '回复失败，请重试') }
       setSelectedReview(null)
     } else if (action === 'task') {
-      toast('success', `已为「${review.content.slice(0, 15)}...」创建整改任务`)
+      try {
+        await fetch('/api/reviews/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: `处理「${review.content.slice(0, 20)}...」相关问题`,
+            category: review.tags[0]?.primary || '其他',
+            stores: [review.store],
+            riskLevel: review.riskLevel,
+            assignee: '待分配',
+            deadline: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+            suggestedAction: review.aiReply || '待制定整改方案',
+          })
+        })
+        await fetchTasks()
+        toast('success', `已创建整改任务`)
+      } catch { toast('error', '创建任务失败') }
       setSelectedReview(null)
       setActiveTab(2)
     }
   }
 
-  const handleTaskAction = (taskId: string, action: string) => {
-    if (action === 'start') {
-      setTaskStatuses(prev => ({ ...prev, [taskId]: 'in_progress' }))
-      toast('info', '整改任务已开始处理')
-    } else if (action === 'resolve') {
-      setTaskStatuses(prev => ({ ...prev, [taskId]: 'resolved' }))
-      toast('success', '整改任务已标记完成')
-    }
+  const handleTaskAction = async (taskId: string, action: string) => {
+    const newStatus = action === 'start' ? 'in_progress' : 'resolved'
+    try {
+      await fetch('/api/reviews/tasks', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId, status: newStatus })
+      })
+      await fetchTasks()
+      toast(action === 'start' ? 'info' : 'success', action === 'start' ? '整改任务已开始处理' : '整改任务已标记完成')
+    } catch { toast('error', '操作失败') }
   }
 
   const handleCopy = (text: string, id: string) => {
@@ -212,7 +263,7 @@ export default function ReviewPage() {
   const filteredReviews = reviews.filter(r => filterPlatform === '全部' || r.platform === filterPlatform)
     .sort((a, b) => {
       const p = { P1: 0, P2: 1, P3: 2, P4: 3 }
-      const sa = getReviewStatus(a), sb = getReviewStatus(b)
+      const sa = a.status, sb = b.status
       if (sa === 'pending' && sb !== 'pending') return -1
       if (sa !== 'pending' && sb === 'pending') return 1
       return p[a.riskLevel] - p[b.riskLevel]
@@ -434,8 +485,8 @@ export default function ReviewPage() {
           <div className="space-y-3">
             {filteredReviews.map(review => {
               const risk = riskConfig[review.riskLevel]
-              const dynStatus = getReviewStatus(review)
-              const st = statusConfig[dynStatus]
+              const dynStatus = review.status as keyof typeof statusConfig
+              const st = statusConfig[dynStatus as keyof typeof statusConfig]
               return (
                 <div key={review.id} onClick={() => setSelectedReview(review)}
                   className={`bg-white rounded-xl p-5 border shadow-sm cursor-pointer hover:shadow-md transition ${dynStatus === 'pending' && review.riskLevel === 'P1' ? 'border-red-200 bg-red-50/30' : 'border-gray-100'}`}>
@@ -485,7 +536,7 @@ export default function ReviewPage() {
           </div>
           <div className="space-y-3">
             {remediationTasks.map(task => {
-              const dynTaskStatus = (taskStatuses[task.id] || task.status) as keyof typeof taskStatusConfig
+              const dynTaskStatus = task.status as keyof typeof taskStatusConfig
               const tRisk = riskConfig[task.riskLevel]; const tStatus = taskStatusConfig[dynTaskStatus]
               return (
                 <div key={task.id} className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">

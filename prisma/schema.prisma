@@ -45,12 +45,45 @@ model Review {
   rating      Int
   content     String
   images      String?
+  hasVideo    Boolean  @default(false)
   createdAt   DateTime
   reply       String?
   repliedAt   DateTime?
   syncedAt    DateTime @default(now())
 
+  // AI分析字段
+  aiTags         String?
+  riskLevel      String?
+  aiSummary      String?
+  aiReply        String?
+  rootCause      String?
+  mentionedDish  String?
+  mentionedStaff String?
+  mentionedPeriod String?
+  status         String  @default("pending")
+  assignee       String?
+  isHighValue    Boolean @default(false)
+  linkedTaskId   String?
+
   @@unique([platform, reviewId])
+}
+
+model RemediationTask {
+  id                String    @id @default(cuid())
+  title             String
+  category          String
+  sourceReviewCount Int       @default(0)
+  stores            String
+  riskLevel         String
+  assignee          String
+  deadline          String
+  status            String    @default("open")
+  suggestedAction   String
+  period            String?
+  staff             String?
+  createdAt         DateTime  @default(now())
+  resolvedAt        DateTime?
+  scoreImpact       String?
 }
 
 model SyncTask {
