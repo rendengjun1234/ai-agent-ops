@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "XHS Bind",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "绑定小红书账号",
-  "permissions": ["cookies"],
+  "permissions": ["cookies", "scripting"],
   "host_permissions": [
     "*://*.xiaohongshu.com/*",
     "https://ai-agent-ops.vercel.app/*"

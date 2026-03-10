@@ -1,16 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserInfo, type XhsCookie } from '@/lib/xhs-service'
+import { setBound } from '@/lib/bind-store'
 
-// POST /api/xhs/callback - 接收书签栏一键提交的 cookie
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { cookieString } = await req.json() as { cookieString: string }
+    const { cookieString, bindToken } = await req.json() as { cookieString: string; bindToken?: string }
 
     if (!cookieString) {
-      return NextResponse.json({ error: '缺少 cookie' }, { status: 400 })
+      return NextResponse.json({ error: '缺少 cookie' }, { status: 400, headers: corsHeaders })
     }
 
-    // 解析 cookie 字符串
     const cookies: XhsCookie[] = cookieString
       .split(';')
       .map(c => c.trim())
@@ -21,35 +26,27 @@ export async function POST(req: NextRequest) {
       })
 
     if (!cookies.find(c => c.name === 'a1')) {
-      return NextResponse.json({ error: '未检测到有效登录状态，请先登录小红书' }, { status: 401 })
+      return NextResponse.json({ error: '未检测到有效登录状态' }, { status: 401, headers: corsHeaders })
     }
 
     const userInfo = await getUserInfo(cookies)
     if (!userInfo) {
-      return NextResponse.json({ error: 'Cookie 无效，请重新登录小红书' }, { status: 401 })
+      return NextResponse.json({ error: 'Cookie 无效，请重新登录' }, { status: 401, headers: corsHeaders })
     }
 
-    // 返回成功 HTML 页面（bookmarklet 会在新窗口打开）
-    return NextResponse.json({
-      success: true,
-      data: {
-        userInfo,
-        cookies,
-      }
-    })
+    const result = { userInfo, cookies }
+
+    // 如果有 bindToken，存到 store 供前端轮询
+    if (bindToken) {
+      setBound(bindToken, result)
+    }
+
+    return NextResponse.json({ success: true, data: result }, { headers: corsHeaders })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return NextResponse.json({ error: err.message }, { status: 500, headers: corsHeaders })
   }
 }
 
-// OPTIONS for CORS (bookmarklet 跨域)
 export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
-  })
+  return new NextResponse(null, { status: 200, headers: corsHeaders })
 }
