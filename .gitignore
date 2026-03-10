@@ -7,3 +7,5 @@ out
 /src/generated/prisma
 prisma/dev.db
 .env
+.env
+prisma/dev.db
