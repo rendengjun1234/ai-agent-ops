@@ -1,8 +1,20 @@
 'use client'
-import { useState } from 'react'
-import { Store, Link, Bell, Sparkles, Save, Shield, Users, Plus, Trash2, Check, X } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Store, Link, Bell, Sparkles, Save, Shield, Users, Plus, Trash2, Check, X, RefreshCw } from 'lucide-react'
 import { useToast } from '@/components/ui/toast'
 import { Modal } from '@/components/ui/modal'
+import BindPlatformModal from '@/components/BindPlatformModal'
+import { PLATFORM_CONFIG, PlatformType } from '@/lib/platform-service'
+
+interface BoundAccount {
+  platform: PlatformType
+  accountId: string
+  accountName: string
+  shops: { shopId: string; shopName: string }[]
+  bindTime: number
+  lastSyncTime?: number
+  status: string
+}
 
 const initialPlatforms = [
   { platform: '美团商家', status: '已绑定', account: 'hubeioutang_fd' },
@@ -39,6 +51,18 @@ export default function SettingsPage() {
   const [showEmployeeModal, setShowEmployeeModal] = useState(false)
   const [empForm, setEmpForm] = useState({ name: '', role: '运营专员', phone: '' })
   const [saving, setSaving] = useState(false)
+  const [showBindModal, setShowBindModal] = useState(false)
+  const [boundAccounts, setBoundAccounts] = useState<BoundAccount[]>([])
+
+  const fetchBoundAccounts = useCallback(async () => {
+    try {
+      const res = await fetch('/api/platform/accounts')
+      const data = await res.json()
+      if (data.success) setBoundAccounts(data.data)
+    } catch {}
+  }, [])
+
+  useEffect(() => { fetchBoundAccounts() }, [fetchBoundAccounts])
 
   const toggleNotification = (id: number) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, enabled: !n.enabled } : n))
@@ -88,12 +112,59 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* 平台账号 */}
+      {/* 平台账号 - Cookie绑定 */}
       <div className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
-        <div className="flex items-center gap-2 mb-4">
-          <Link className="w-5 h-5 text-primary-600" />
-          <h3 className="font-semibold text-gray-900">平台账号绑定</h3>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Link className="w-5 h-5 text-primary-600" />
+            <h3 className="font-semibold text-gray-900">平台账号绑定</h3>
+          </div>
+          <button onClick={() => setShowBindModal(true)} className="text-xs px-3 py-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-1">
+            <Plus className="w-3 h-3" />Cookie绑定
+          </button>
         </div>
+
+        {/* 已通过Cookie绑定的账号 */}
+        {boundAccounts.length > 0 && (
+          <div className="mb-4">
+            <p className="text-xs text-gray-400 mb-2">已通过Cookie绑定的账号：</p>
+            {boundAccounts.map(acc => {
+              const cfg = PLATFORM_CONFIG[acc.platform]
+              return (
+                <div key={acc.accountId} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
+                  <div className="flex items-center gap-2">
+                    <span>{cfg?.icon || '📦'}</span>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{cfg?.name || acc.platform} · {acc.accountName}</p>
+                      <p className="text-xs text-gray-400">
+                        {acc.shops.length} 个门店 · {acc.lastSyncTime ? `最后同步 ${new Date(acc.lastSyncTime).toLocaleString('zh-CN')}` : '未同步'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs px-2 py-0.5 rounded ${acc.status === 'active' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
+                      {acc.status === 'active' ? '正常' : '已过期'}
+                    </span>
+                    <button onClick={async () => {
+                      if (!confirm('确定解绑？')) return
+                      await fetch('/api/platform/accounts', {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ platform: acc.platform, accountId: acc.accountId }),
+                      })
+                      fetchBoundAccounts()
+                      toast('info', '已解绑')
+                    }} className="text-xs text-gray-400 hover:text-red-500">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* 原有的静态平台列表 */}
         <div className="space-y-3">
           {platforms.map((p, i) => (
             <div key={p.platform} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
@@ -197,6 +268,13 @@ export default function SettingsPage() {
           <div><label className="block text-sm font-medium text-gray-700 mb-1">手机号</label><input value={empForm.phone} onChange={e => setEmpForm(f => ({ ...f, phone: e.target.value }))} placeholder="138xxxx6688" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none" /></div>
         </div>
       </Modal>
+
+      {/* 平台绑定弹窗 */}
+      <BindPlatformModal
+        open={showBindModal}
+        onClose={() => setShowBindModal(false)}
+        onSuccess={() => { fetchBoundAccounts(); toast('success', '平台绑定成功') }}
+      />
     </div>
   )
 }

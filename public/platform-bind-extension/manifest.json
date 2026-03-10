@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "多平台商家绑定助手",
+  "version": "1.0.0",
+  "description": "一键绑定美团/饿了么/抖音/小红书商家账号",
+  "permissions": ["cookies", "activeTab"],
+  "host_permissions": [
+    "*://*.meituan.com/*",
+    "*://*.ele.me/*",
+    "*://*.douyin.com/*",
+    "*://*.xiaohongshu.com/*",
+    "*://*.dianping.com/*",
+    "https://ai-agent-ops.vercel.app/*",
+    "http://localhost:3000/*"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
