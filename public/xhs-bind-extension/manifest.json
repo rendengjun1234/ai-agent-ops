@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "智店AI - 小红书账号绑定",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "一键绑定小红书账号到智店AI",
-  "permissions": ["cookies"],
+  "permissions": ["cookies", "tabs"],
   "host_permissions": [
     "https://*.xiaohongshu.com/*",
     "https://ai-agent-ops.vercel.app/*"

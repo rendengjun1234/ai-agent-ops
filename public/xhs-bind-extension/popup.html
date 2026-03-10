@@ -5,13 +5,13 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { width: 320px; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    h2 { font-size: 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    h2 { font-size: 16px; margin-bottom: 12px; }
     .status { padding: 12px; border-radius: 8px; font-size: 13px; margin-bottom: 12px; }
     .status.info { background: #eff6ff; color: #1d4ed8; }
     .status.success { background: #f0fdf4; color: #16a34a; }
     .status.error { background: #fef2f2; color: #dc2626; }
     .status.loading { background: #fefce8; color: #ca8a04; }
-    button { width: 100%; padding: 10px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    button { width: 100%; padding: 10px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
     button.primary { background: #ef4444; color: white; }
     button.primary:hover { background: #dc2626; }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -21,7 +21,7 @@
 <body>
   <h2>📕 绑定小红书</h2>
   <div id="status" class="status info">点击下方按钮，自动获取小红书登录状态</div>
-  <button id="bindBtn" class="primary" onclick="bindAccount()">🔗 一键绑定</button>
+  <button id="bindBtn" class="primary">🔗 一键绑定</button>
   <p class="hint">请确保已在浏览器中登录小红书</p>
   <script src="popup.js"></script>
 </body>
