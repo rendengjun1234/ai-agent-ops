@@ -1,23 +1,30 @@
 'use client'
 import { useState } from 'react'
-import { X, Loader2, Upload, Image, Sparkles, AlertCircle, CheckCircle } from 'lucide-react'
+import { X, Loader2, Upload, Sparkles, AlertCircle, CheckCircle } from 'lucide-react'
+import { type PlatformType, PLATFORM_LABELS } from '@/lib/platform-types'
 
 interface PublishNoteModalProps {
   open: boolean
   onClose: () => void
+  platform: PlatformType
   account: { cookies: any[]; userInfo: { nickname: string; avatar: string } } | null
 }
 
-export default function PublishNoteModal({ open, onClose, account }: PublishNoteModalProps) {
+export default function PublishNoteModal({ open, onClose, platform, account }: PublishNoteModalProps) {
   const [title, setTitle] = useState('')
   const [desc, setDesc] = useState('')
   const [images, setImages] = useState<string[]>([])
   const [topics, setTopics] = useState('')
-  const [visibility, setVisibility] = useState<0 | 1>(0)
+  const [visibility, setVisibility] = useState<number>(0)
+  const [hotSentence, setHotSentence] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<{ success: boolean; shareLink?: string; error?: string } | null>(null)
 
   if (!open || !account) return null
+
+  const platformInfo = PLATFORM_LABELS[platform]
+  const accentColor = platform === 'xiaohongshu' ? 'red' : platform === 'douyin' ? 'blue' : 'primary'
+  const ringClass = `focus:ring-${accentColor}-400`
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
@@ -46,10 +53,11 @@ export default function PublishNoteModal({ open, onClose, account }: PublishNote
         .filter(Boolean)
         .map((t, i) => ({ topicId: `topic_${i}`, topicName: t }))
 
-      const res = await fetch('/api/xhs/publish', {
+      const res = await fetch('/api/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          platform,
           cookies: account.cookies,
           params: {
             title,
@@ -57,15 +65,16 @@ export default function PublishNoteModal({ open, onClose, account }: PublishNote
             images,
             topics: topicList.length > 0 ? topicList : undefined,
             visibility,
+            ...(platform === 'douyin' && hotSentence ? { hot_sentence: hotSentence } : {}),
           },
         }),
       })
 
       const data = await res.json()
-      if (!res.ok) {
-        setResult({ success: false, error: data.error })
+      if (!res.ok || !data.success) {
+        setResult({ success: false, error: data.error || '发布失败' })
       } else {
-        setResult({ success: true, shareLink: data.data.shareLink })
+        setResult({ success: true, shareLink: data.shareLink })
       }
     } catch (err: any) {
       setResult({ success: false, error: err.message })
@@ -74,12 +83,17 @@ export default function PublishNoteModal({ open, onClose, account }: PublishNote
     }
   }
 
+  const canPublish = title.trim() && images.length > 0
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-5 border-b sticky top-0 bg-white rounded-t-2xl">
+        <div className="flex items-center justify-between p-5 border-b sticky top-0 bg-white rounded-t-2xl z-10">
           <div>
-            <h2 className="text-lg font-semibold">发布小红书笔记</h2>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <span>{platformInfo.icon}</span>
+              发布到{platformInfo.label}
+            </h2>
             <p className="text-xs text-gray-400 mt-0.5">账号：{account.userInfo.nickname}</p>
           </div>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
@@ -94,9 +108,9 @@ export default function PublishNoteModal({ open, onClose, account }: PublishNote
             <input
               value={title}
               onChange={e => setTitle(e.target.value)}
-              placeholder="输入笔记标题（建议20字以内）"
+              placeholder="输入标题（建议20字以内）"
               maxLength={40}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
+              className={`w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 ${ringClass}`}
             />
             <p className="text-xs text-gray-400 mt-1 text-right">{title.length}/40</p>
           </div>
@@ -109,13 +123,13 @@ export default function PublishNoteModal({ open, onClose, account }: PublishNote
               onChange={e => setDesc(e.target.value)}
               placeholder="写点什么..."
               rows={5}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none"
+              className={`w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 ${ringClass} resize-none`}
             />
           </div>
 
           {/* 图片上传 */}
           <div>
-            <label className="text-sm font-medium text-gray-700 block mb-1.5">图片 * （至少1张）</label>
+            <label className="text-sm font-medium text-gray-700 block mb-1.5">图片 *（至少1张）</label>
             <div className="flex flex-wrap gap-3">
               {images.map((img, i) => (
                 <div key={i} className="relative w-24 h-24 rounded-lg overflow-hidden border">
@@ -127,7 +141,7 @@ export default function PublishNoteModal({ open, onClose, account }: PublishNote
                 </div>
               ))}
               {images.length < 9 && (
-                <label className="w-24 h-24 border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-red-300 transition">
+                <label className="w-24 h-24 border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-gray-400 transition">
                   <Upload className="w-6 h-6 text-gray-300" />
                   <span className="text-xs text-gray-400 mt-1">上传</span>
                   <input type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" />
@@ -137,35 +151,58 @@ export default function PublishNoteModal({ open, onClose, account }: PublishNote
             <p className="text-xs text-gray-400 mt-1">{images.length}/9 张</p>
           </div>
 
-          {/* 话题 */}
+          {/* 话题 - 所有平台通用 */}
           <div>
-            <label className="text-sm font-medium text-gray-700 block mb-1.5">话题标签</label>
+            <label className="text-sm font-medium text-gray-700 block mb-1.5">
+              {platform === 'xiaohongshu' ? '话题标签' : '话题'}
+            </label>
             <input
               value={topics}
               onChange={e => setTopics(e.target.value)}
               placeholder="用逗号分隔，如：美食探店, 武汉美食"
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
+              className={`w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 ${ringClass}`}
             />
           </div>
+
+          {/* 抖音特有：热点话题 */}
+          {platform === 'douyin' && (
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1.5">🔥 热点话题</label>
+              <input
+                value={hotSentence}
+                onChange={e => setHotSentence(e.target.value)}
+                placeholder="输入热门话题（可选）"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+            </div>
+          )}
 
           {/* 可见性 */}
           <div>
             <label className="text-sm font-medium text-gray-700 block mb-1.5">可见范围</label>
             <div className="flex gap-3">
               {[
-                { value: 0 as const, label: '公开' },
-                { value: 1 as const, label: '私密' },
+                { value: 0, label: '公开' },
+                { value: 1, label: '私密' },
               ].map(opt => (
                 <button
                   key={opt.value}
                   onClick={() => setVisibility(opt.value)}
-                  className={`px-4 py-2 text-sm rounded-lg border ${visibility === opt.value ? 'border-red-500 bg-red-50 text-red-600' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                  className={`px-4 py-2 text-sm rounded-lg border ${visibility === opt.value ? 'border-gray-900 bg-gray-50 text-gray-900 font-medium' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
                 >
                   {opt.label}
                 </button>
               ))}
             </div>
           </div>
+
+          {/* 平台提示 */}
+          {(platform === 'kwai' || platform === 'wxsph') && (
+            <div className="p-3 bg-yellow-50 rounded-lg flex items-center gap-2 text-sm text-yellow-700">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              {platform === 'kwai' ? '快手暂只支持视频发布，图文发布功能开发中' : '微信视频号发布功能开发中'}
+            </div>
+          )}
 
           {/* 结果 */}
           {result && (
@@ -177,7 +214,7 @@ export default function PublishNoteModal({ open, onClose, account }: PublishNote
                     <p className="text-sm font-medium text-green-700">发布成功！</p>
                     {result.shareLink && (
                       <a href={result.shareLink} target="_blank" className="text-xs text-green-600 underline mt-1 block">
-                        查看笔记 →
+                        查看内容 →
                       </a>
                     )}
                   </div>
@@ -198,11 +235,11 @@ export default function PublishNoteModal({ open, onClose, account }: PublishNote
           </button>
           <button
             onClick={handlePublish}
-            disabled={loading || !title.trim() || images.length === 0}
-            className="px-6 py-2 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 flex items-center gap-1.5"
+            disabled={loading || !canPublish || platform === 'kwai' || platform === 'wxsph'}
+            className="px-6 py-2 text-sm bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 flex items-center gap-1.5"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            {loading ? '发布中...' : '发布笔记'}
+            {loading ? '发布中...' : `发布到${platformInfo.label}`}
           </button>
         </div>
       </div>

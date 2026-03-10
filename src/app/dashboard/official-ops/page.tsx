@@ -1,15 +1,19 @@
 'use client'
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Smartphone, Plus, TrendingUp, Eye, Heart, MessageSquare, Share2, Calendar, Clock, Sparkles, Users, BarChart3, Play, Pause, Edit, Copy, Download, ChevronDown, Check, Zap } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
 import { socialAccounts, contentPosts, contentStrategies, marketingCalendar, officialOpsStats } from '@/lib/official-ops-data'
 import { useStore } from '@/lib/store-context'
+import { type PlatformType, PLATFORM_LABELS, SUPPORTED_PLATFORMS } from '@/lib/platform-types'
 import BindXhsAccountModal from '@/components/BindXhsAccountModal'
 import PublishNoteModal from '@/components/PublishNoteModal'
 
 const tabs = ['账号矩阵', '内容管理', '营销日历', '数据分析']
 const statusLabels = { draft: '草稿', scheduled: '定时', published: '已发布', generating: '生成中' }
 const statusColors = { draft: 'bg-gray-100 text-gray-600', scheduled: 'bg-blue-50 text-blue-600', published: 'bg-green-50 text-green-600', generating: 'bg-yellow-50 text-yellow-600' }
+
+type BoundAccountInfo = { cookies: any[]; userInfo: { nickname: string; avatar: string } }
+type BoundAccounts = Partial<Record<PlatformType, BoundAccountInfo>>
 
 function AccountCard({ account }: { account: typeof socialAccounts[0] }) {
   return (
@@ -139,8 +143,47 @@ export default function OfficialOpsPage() {
   const [activeTab, setActiveTab] = useState(0)
   const { currentStore } = useStore()
   const [showBindModal, setShowBindModal] = useState(false)
+  const [bindPlatform, setBindPlatform] = useState<PlatformType>('xiaohongshu')
   const [showPublishModal, setShowPublishModal] = useState(false)
-  const [boundAccount, setBoundAccount] = useState<{ cookies: any[]; userInfo: any } | null>(null)
+  const [publishPlatform, setPublishPlatform] = useState<PlatformType>('xiaohongshu')
+  const [boundAccounts, setBoundAccounts] = useState<BoundAccounts>({})
+  const [showPublishDropdown, setShowPublishDropdown] = useState(false)
+  const [showBindDropdown, setShowBindDropdown] = useState(false)
+  const publishDropdownRef = useRef<HTMLDivElement>(null)
+  const bindDropdownRef = useRef<HTMLDivElement>(null)
+
+  const boundPlatforms = (Object.keys(boundAccounts) as PlatformType[]).filter(p => boundAccounts[p])
+  const hasBoundAccounts = boundPlatforms.length > 0
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (publishDropdownRef.current && !publishDropdownRef.current.contains(e.target as Node)) {
+        setShowPublishDropdown(false)
+      }
+      if (bindDropdownRef.current && !bindDropdownRef.current.contains(e.target as Node)) {
+        setShowBindDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const handleBindSuccess = (account: { cookies: any[]; userInfo: any }) => {
+    setBoundAccounts(prev => ({ ...prev, [bindPlatform]: account }))
+  }
+
+  const handlePublishClick = (platform: PlatformType) => {
+    setPublishPlatform(platform)
+    setShowPublishModal(true)
+    setShowPublishDropdown(false)
+  }
+
+  const handleBindClick = (platform: PlatformType) => {
+    setBindPlatform(platform)
+    setShowBindModal(true)
+    setShowBindDropdown(false)
+  }
 
   const weeklyData = [
     { day: '周一', views: 12000, likes: 890, posts: 3 },
@@ -160,22 +203,83 @@ export default function OfficialOpsPage() {
           <p className="text-gray-500 mt-1">矩阵账号 · AI内容生成 · 营销日历</p>
         </div>
         <div className="flex gap-2">
-          {boundAccount && (
-            <button 
-              onClick={() => setShowPublishModal(true)}
-              className="px-4 py-2 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 flex items-center gap-1.5"
-            >
-              <Sparkles className="w-4 h-4" />发布笔记
-            </button>
+          {/* 发布按钮 - 下拉选择已绑定平台 */}
+          {hasBoundAccounts && (
+            <div className="relative" ref={publishDropdownRef}>
+              <button
+                onClick={() => setShowPublishDropdown(!showPublishDropdown)}
+                className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 flex items-center gap-1.5"
+              >
+                <Sparkles className="w-4 h-4" />发布内容
+                <ChevronDown className="w-3.5 h-3.5 ml-1" />
+              </button>
+              {showPublishDropdown && (
+                <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-50">
+                  {boundPlatforms.map(p => (
+                    <button
+                      key={p}
+                      onClick={() => handlePublishClick(p)}
+                      className="w-full px-4 py-2.5 text-sm text-left hover:bg-gray-50 flex items-center gap-2"
+                    >
+                      <span>{PLATFORM_LABELS[p].icon}</span>
+                      <span>{PLATFORM_LABELS[p].label}</span>
+                      <span className="text-xs text-gray-400 ml-auto">{boundAccounts[p]?.userInfo.nickname}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
-          <button 
-            onClick={() => setShowBindModal(true)}
-            className="px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 flex items-center gap-1.5"
-          >
-            <Plus className="w-4 h-4" />{boundAccount ? '更换账号' : '绑定账号'}
-          </button>
+
+          {/* 绑定账号按钮 - 下拉选择平台 */}
+          <div className="relative" ref={bindDropdownRef}>
+            <button
+              onClick={() => setShowBindDropdown(!showBindDropdown)}
+              className="px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" />绑定账号
+              <ChevronDown className="w-3.5 h-3.5 ml-1" />
+            </button>
+            {showBindDropdown && (
+              <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-50">
+                {SUPPORTED_PLATFORMS.map(p => (
+                  <button
+                    key={p}
+                    onClick={() => handleBindClick(p)}
+                    className="w-full px-4 py-2.5 text-sm text-left hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <span>{PLATFORM_LABELS[p].icon}</span>
+                    <span>{PLATFORM_LABELS[p].label}</span>
+                    {boundAccounts[p] && (
+                      <Check className="w-3.5 h-3.5 text-green-500 ml-auto" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* 已绑定账号展示 */}
+      {hasBoundAccounts && (
+        <div className="flex flex-wrap gap-3">
+          {boundPlatforms.map(p => {
+            const acc = boundAccounts[p]!
+            const info = PLATFORM_LABELS[p]
+            return (
+              <div key={p} className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-gray-100 shadow-sm">
+                <span className="text-lg">{info.icon}</span>
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{acc.userInfo.nickname}</p>
+                  <p className="text-xs text-gray-400">{info.label}</p>
+                </div>
+                <span className="w-2 h-2 bg-green-500 rounded-full ml-1" />
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
@@ -207,7 +311,6 @@ export default function OfficialOpsPage() {
       </div>
 
       {activeTab === 0 && (
-        /* 账号矩阵 */
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-gray-500">管理官方号和员工号，打造多账号内容矩阵</p>
@@ -223,7 +326,6 @@ export default function OfficialOpsPage() {
       )}
 
       {activeTab === 1 && (
-        /* 内容管理 */
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-gray-500">AI生成内容，多账号分发，定时发布</p>
@@ -237,7 +339,6 @@ export default function OfficialOpsPage() {
             </div>
           </div>
 
-          {/* 内容策略 */}
           <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-5 border border-purple-100">
             <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-purple-500" />内容策略模板
@@ -259,7 +360,6 @@ export default function OfficialOpsPage() {
       )}
 
       {activeTab === 2 && (
-        /* 营销日历 */
         <div className="space-y-4">
           <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
             <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -296,7 +396,6 @@ export default function OfficialOpsPage() {
       )}
 
       {activeTab === 3 && (
-        /* 数据分析 */
         <div className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
@@ -342,12 +441,13 @@ export default function OfficialOpsPage() {
       <BindXhsAccountModal
         open={showBindModal}
         onClose={() => setShowBindModal(false)}
-        onSuccess={(account) => setBoundAccount(account)}
+        onSuccess={handleBindSuccess}
       />
       <PublishNoteModal
         open={showPublishModal}
         onClose={() => setShowPublishModal(false)}
-        account={boundAccount}
+        platform={publishPlatform}
+        account={publishPlatform ? boundAccounts[publishPlatform] || null : null}
       />
     </div>
   )
