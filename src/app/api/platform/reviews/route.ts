@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { PlatformType } from '@/lib/platform-service'
-import { platformStore } from '@/lib/store/platform-store'
+import { platformStore, dbAccountToPlatformAccount } from '@/lib/store/platform-store'
 import { meituanService } from '@/lib/meituan-service'
 import { elemeService } from '@/lib/eleme-service'
 import { douyinService } from '@/lib/douyin-service'
@@ -23,10 +23,11 @@ export async function GET(req: NextRequest) {
     const shopId = req.nextUrl.searchParams.get('shopId')
     const page = parseInt(req.nextUrl.searchParams.get('page') || '1')
 
-    const accounts = platform
-      ? platformStore.getAccountsByPlatform(platform)
-      : platformStore.getAllAccounts()
+    const dbAccounts = platform
+      ? await platformStore.getAccountsByPlatform(platform)
+      : await platformStore.getAllAccounts()
 
+    const accounts = dbAccounts.map(dbAccountToPlatformAccount)
     const allReviews = []
 
     for (const account of accounts) {
@@ -47,7 +48,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 按时间倒序
     allReviews.sort((a, b) => b.reviewTime - a.reviewTime)
 
     return NextResponse.json({ success: true, data: { reviews: allReviews, total: allReviews.length } })
@@ -68,13 +68,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `暂不支持平台: ${platform}` }, { status: 400 })
     }
 
-    // 找到对应账号的cookies
-    const accounts = platformStore.getAccountsByPlatform(platform)
-    if (accounts.length === 0) {
+    const dbAccounts = await platformStore.getAccountsByPlatform(platform)
+    if (dbAccounts.length === 0) {
       return NextResponse.json({ error: '未找到该平台的绑定账号' }, { status: 404 })
     }
 
-    const result = await service.replyReview(accounts[0].cookies, { reviewId, content })
+    const account = dbAccountToPlatformAccount(dbAccounts[0])
+    const result = await service.replyReview(account.cookies, { reviewId, content })
     return NextResponse.json({ success: result.success, ...('error' in result ? { error: result.error } : {}) })
   } catch (err: any) {
     return NextResponse.json({ error: err.message || '回复失败' }, { status: 500 })

@@ -1,73 +1,132 @@
 /**
- * 平台账号和门店的内存存储
- * TODO: 后续可替换为数据库存储
+ * 平台账号和门店的持久化存储 (Prisma + SQLite)
  */
 
-import { PlatformAccount, PlatformShop, PlatformType } from '../platform-service'
+import { prisma } from '../db'
+import { PlatformAccount, PlatformShop, PlatformType, PlatformCookie } from '../platform-service'
 
-class PlatformStore {
-  private accounts: Map<string, PlatformAccount> = new Map()
-
+export const platformStore = {
   // ====== 账号 CRUD ======
 
-  addAccount(account: PlatformAccount): void {
-    const key = `${account.platform}:${account.accountId}`
-    this.accounts.set(key, account)
-  }
+  async addAccount(account: PlatformAccount) {
+    return prisma.platformAccount.upsert({
+      where: { platform_accountId: { platform: account.platform, accountId: account.accountId } },
+      update: {
+        accountName: account.accountName,
+        cookies: JSON.stringify(account.cookies),
+        status: account.status,
+        lastSyncAt: account.lastSyncTime ? new Date(account.lastSyncTime) : null,
+      },
+      create: {
+        platform: account.platform,
+        accountId: account.accountId,
+        accountName: account.accountName,
+        cookies: JSON.stringify(account.cookies),
+        status: account.status,
+        bindTime: new Date(account.bindTime),
+      },
+    })
+  },
 
-  getAccount(platform: PlatformType, accountId: string): PlatformAccount | undefined {
-    return this.accounts.get(`${platform}:${accountId}`)
-  }
+  async getAccount(platform: PlatformType, accountId: string) {
+    return prisma.platformAccount.findUnique({
+      where: { platform_accountId: { platform, accountId } },
+      include: { shops: true },
+    })
+  },
 
-  getAllAccounts(): PlatformAccount[] {
-    return Array.from(this.accounts.values())
-  }
+  async getAllAccounts() {
+    return prisma.platformAccount.findMany({ include: { shops: true } })
+  },
 
-  getAccountsByPlatform(platform: PlatformType): PlatformAccount[] {
-    return this.getAllAccounts().filter(a => a.platform === platform)
-  }
+  async getAccountsByPlatform(platform: PlatformType) {
+    return prisma.platformAccount.findMany({
+      where: { platform },
+      include: { shops: true },
+    })
+  },
 
-  removeAccount(platform: PlatformType, accountId: string): boolean {
-    return this.accounts.delete(`${platform}:${accountId}`)
-  }
+  async removeAccount(platform: PlatformType, accountId: string) {
+    try {
+      await prisma.platformAccount.delete({
+        where: { platform_accountId: { platform, accountId } },
+      })
+      return true
+    } catch {
+      return false
+    }
+  },
 
-  updateAccountStatus(platform: PlatformType, accountId: string, status: PlatformAccount['status']): void {
-    const account = this.getAccount(platform, accountId)
-    if (account) account.status = status
-  }
+  async updateAccountStatus(platform: PlatformType, accountId: string, status: string) {
+    await prisma.platformAccount.update({
+      where: { platform_accountId: { platform, accountId } },
+      data: { status },
+    })
+  },
 
-  updateLastSyncTime(platform: PlatformType, accountId: string): void {
-    const account = this.getAccount(platform, accountId)
-    if (account) account.lastSyncTime = Date.now()
-  }
+  async updateLastSyncTime(platform: PlatformType, accountId: string) {
+    await prisma.platformAccount.update({
+      where: { platform_accountId: { platform, accountId } },
+      data: { lastSyncAt: new Date() },
+    })
+  },
 
-  // ====== 门店查询 ======
+  // ====== 门店 ======
 
-  getAllShops(): PlatformShop[] {
-    return this.getAllAccounts().flatMap(a => a.shops)
-  }
+  async addShops(shops: PlatformShop[], dbAccountId: string) {
+    for (const shop of shops) {
+      await prisma.shop.upsert({
+        where: { platform_shopId: { platform: shop.platform, shopId: shop.shopId } },
+        update: { shopName: shop.shopName, address: shop.address, rating: shop.rating },
+        create: {
+          shopId: shop.shopId,
+          shopName: shop.shopName,
+          platform: shop.platform,
+          address: shop.address,
+          rating: shop.rating,
+          accountId: dbAccountId,
+        },
+      })
+    }
+  },
 
-  getShopsByPlatform(platform: PlatformType): PlatformShop[] {
-    return this.getAccountsByPlatform(platform).flatMap(a => a.shops)
-  }
+  async getAllShops() {
+    return prisma.shop.findMany()
+  },
+
+  async getShopsByPlatform(platform: PlatformType) {
+    return prisma.shop.findMany({ where: { platform } })
+  },
 
   // ====== 统计 ======
 
-  getStats() {
-    const accounts = this.getAllAccounts()
-    return {
-      totalAccounts: accounts.length,
-      activeAccounts: accounts.filter(a => a.status === 'active').length,
-      totalShops: accounts.reduce((sum, a) => sum + a.shops.length, 0),
-      byPlatform: Object.fromEntries(
-        (['meituan', 'eleme', 'douyin', 'xhs', 'dianping'] as PlatformType[]).map(p => [
-          p,
-          { accounts: this.getAccountsByPlatform(p).length, shops: this.getShopsByPlatform(p).length },
-        ])
-      ),
-    }
-  }
+  async getStats() {
+    const [totalAccounts, activeAccounts, totalShops] = await Promise.all([
+      prisma.platformAccount.count(),
+      prisma.platformAccount.count({ where: { status: 'active' } }),
+      prisma.shop.count(),
+    ])
+    return { totalAccounts, activeAccounts, totalShops }
+  },
 }
 
-// 全局单例
-export const platformStore = new PlatformStore()
+// Helper: convert DB account to PlatformAccount type
+export function dbAccountToPlatformAccount(dbAcc: any): PlatformAccount {
+  return {
+    platform: dbAcc.platform as PlatformType,
+    accountId: dbAcc.accountId,
+    accountName: dbAcc.accountName,
+    cookies: JSON.parse(dbAcc.cookies) as PlatformCookie[],
+    shops: (dbAcc.shops || []).map((s: any) => ({
+      shopId: s.shopId,
+      shopName: s.shopName,
+      platform: s.platform as PlatformType,
+      bindAccountId: dbAcc.accountId,
+      rating: s.rating,
+      address: s.address,
+    })),
+    bindTime: new Date(dbAcc.bindTime).getTime(),
+    lastSyncTime: dbAcc.lastSyncAt ? new Date(dbAcc.lastSyncAt).getTime() : undefined,
+    status: dbAcc.status as 'active' | 'expired' | 'error',
+  }
+}

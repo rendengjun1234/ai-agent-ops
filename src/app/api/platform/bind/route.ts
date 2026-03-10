@@ -14,7 +14,6 @@ const services = {
   meituan: meituanService,
   eleme: elemeService,
   douyin: douyinService,
-  // xhs 和 dianping 可后续添加
 }
 
 export async function POST(req: NextRequest) {
@@ -23,7 +22,7 @@ export async function POST(req: NextRequest) {
     const { platform, cookies, cookieString } = body as {
       platform: PlatformType
       cookies?: PlatformCookie[]
-      cookieString?: string  // 支持直接粘贴cookie字符串
+      cookieString?: string
     }
 
     if (!platform) {
@@ -35,7 +34,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `暂不支持平台: ${platform}` }, { status: 400 })
     }
 
-    // 解析 cookies
     const parsedCookies = cookies || (cookieString ? parseCookieString(cookieString) : null)
     if (!parsedCookies || parsedCookies.length === 0) {
       return NextResponse.json({ error: '缺少 Cookie 数据' }, { status: 400 })
@@ -44,17 +42,14 @@ export async function POST(req: NextRequest) {
     // 1. 验证 Cookie
     const validation = await service.validateCookies(parsedCookies)
     if (!validation.valid) {
-      return NextResponse.json({
-        success: false,
-        error: validation.error || 'Cookie 验证失败',
-      }, { status: 401 })
+      return NextResponse.json({ success: false, error: validation.error || 'Cookie 验证失败' }, { status: 401 })
     }
 
     // 2. 获取门店列表
     const shops = await service.getShops(parsedCookies)
     const shopsWithAccount = shops.map(s => ({ ...s, bindAccountId: validation.accountId! }))
 
-    // 3. 存储账号信息
+    // 3. 存储到数据库
     const account: PlatformAccount = {
       platform,
       accountId: validation.accountId!,
@@ -66,7 +61,10 @@ export async function POST(req: NextRequest) {
       status: 'active',
       avatar: (validation as any).avatar,
     }
-    platformStore.addAccount(account)
+    const dbAccount = await platformStore.addAccount(account)
+
+    // 4. 存储门店
+    await platformStore.addShops(shopsWithAccount, dbAccount.id)
 
     return NextResponse.json({
       success: true,

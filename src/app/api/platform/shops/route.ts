@@ -11,8 +11,8 @@ export async function GET(req: NextRequest) {
   const platform = req.nextUrl.searchParams.get('platform') as PlatformType | null
 
   const shops = platform
-    ? platformStore.getShopsByPlatform(platform)
-    : platformStore.getAllShops()
+    ? await platformStore.getShopsByPlatform(platform)
+    : await platformStore.getAllShops()
 
   return NextResponse.json({ success: true, data: shops })
 }

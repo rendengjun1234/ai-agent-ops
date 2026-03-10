@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model PlatformAccount {
+  id          String   @id @default(cuid())
+  platform    String
+  accountId   String
+  accountName String
+  cookies     String
+  status      String   @default("active")
+  bindTime    DateTime @default(now())
+  lastSyncAt  DateTime?
+  shops       Shop[]
+
+  @@unique([platform, accountId])
+}
+
+model Shop {
+  id          String   @id @default(cuid())
+  shopId      String
+  shopName    String
+  platform    String
+  address     String?
+  rating      Float?
+  accountId   String
+  account     PlatformAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  reviews     Review[]
+
+  @@unique([platform, shopId])
+}
+
+model Review {
+  id          String   @id @default(cuid())
+  reviewId    String
+  platform    String
+  shopId      String
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  userName    String
+  rating      Int
+  content     String
+  images      String?
+  createdAt   DateTime
+  reply       String?
+  repliedAt   DateTime?
+  syncedAt    DateTime @default(now())
+
+  @@unique([platform, reviewId])
+}
+
+model SyncTask {
+  id          String   @id @default(cuid())
+  platform    String
+  accountId   String
+  taskType    String
+  status      String   @default("pending")
+  startedAt   DateTime?
+  completedAt DateTime?
+  error       String?
+  createdAt   DateTime @default(now())
+}

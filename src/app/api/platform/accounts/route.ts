@@ -12,8 +12,8 @@ export async function GET(req: NextRequest) {
   const platform = req.nextUrl.searchParams.get('platform') as PlatformType | null
 
   const accounts = platform
-    ? platformStore.getAccountsByPlatform(platform)
-    : platformStore.getAllAccounts()
+    ? await platformStore.getAccountsByPlatform(platform)
+    : await platformStore.getAllAccounts()
 
   // 返回时隐藏 cookies 敏感信息
   const safeAccounts = accounts.map(({ cookies, ...rest }) => ({
@@ -31,7 +31,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: '缺少 platform 或 accountId' }, { status: 400 })
     }
 
-    const removed = platformStore.removeAccount(platform, accountId)
+    const removed = await platformStore.removeAccount(platform, accountId)
     if (!removed) {
       return NextResponse.json({ error: '账号不存在' }, { status: 404 })
     }

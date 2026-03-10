@@ -3,3 +3,7 @@ node_modules
 out
 
 .vercel
+
+/src/generated/prisma
+prisma/dev.db
+.env
